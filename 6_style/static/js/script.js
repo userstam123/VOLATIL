@@ -1202,7 +1202,7 @@ function closeTab(id, wasRunning) {
 // ============================================================
 let currentAIModel = 'qwen';
 let aiAttachments = [];
-let aiSidebarCollapsed = true;
+let aiSidebarCollapsed = false;
 
 const aiSidebar = document.getElementById('ai-sidebar');
 const aiCollapseBtn = document.getElementById('ai-collapse-btn');
@@ -1211,6 +1211,62 @@ const aiChatHistory = document.getElementById('ai-chat-history');
 const aiPromptInput = document.getElementById('ai-prompt-input');
 const aiSendBtn = document.getElementById('ai-send-btn');
 const aiAttachmentStatus = document.getElementById('ai-attachment-status');
+
+// API Key storage per model
+const apiKeys = {
+    qwen: '',
+    gemini: '',
+    grok: ''
+};
+
+// Load saved API keys from localStorage
+function loadAPIKeys() {
+    const savedKeys = localStorage.getItem('ai_api_keys');
+    if (savedKeys) {
+        try {
+            const parsed = JSON.parse(savedKeys);
+            apiKeys.qwen = parsed.qwen || '';
+            apiKeys.gemini = parsed.gemini || '';
+            apiKeys.grok = parsed.grok || '';
+            
+            // Populate input fields
+            const qwenInput = document.getElementById('qwen-api-key');
+            const geminiInput = document.getElementById('gemini-api-key');
+            const grokInput = document.getElementById('grok-api-key');
+            if (qwenInput) qwenInput.value = apiKeys.qwen;
+            if (geminiInput) geminiInput.value = apiKeys.gemini;
+            if (grokInput) grokInput.value = apiKeys.grok;
+        } catch (e) {
+            console.error('Failed to load API keys:', e);
+        }
+    }
+}
+
+// Save API key when changed
+function saveAPIKey(model, value) {
+    apiKeys[model] = value;
+    localStorage.setItem('ai_api_keys', JSON.stringify(apiKeys));
+}
+
+// Setup API key listeners
+function setupAPIKeyListeners() {
+    const qwenInput = document.getElementById('qwen-api-key');
+    const geminiInput = document.getElementById('gemini-api-key');
+    const grokInput = document.getElementById('grok-api-key');
+    
+    if (qwenInput) {
+        qwenInput.addEventListener('change', (e) => saveAPIKey('qwen', e.target.value));
+        qwenInput.addEventListener('blur', (e) => saveAPIKey('qwen', e.target.value));
+    }
+    if (geminiInput) {
+        geminiInput.addEventListener('change', (e) => saveAPIKey('gemini', e.target.value));
+        geminiInput.addEventListener('blur', (e) => saveAPIKey('gemini', e.target.value));
+    }
+    if (grokInput) {
+        grokInput.addEventListener('change', (e) => saveAPIKey('grok', e.target.value));
+        grokInput.addEventListener('blur', (e) => saveAPIKey('grok', e.target.value));
+    }
+}
 
 // Toggle AI sidebar collapse/expand
 if (aiCollapseBtn) {
@@ -1268,7 +1324,8 @@ async function sendAIMessage() {
             body: JSON.stringify({
                 model: currentAIModel,
                 prompt: prompt,
-                attachments: attachmentsData
+                attachments: attachmentsData,
+                api_key: apiKeys[currentAIModel] || ''
             })
         });
         
@@ -1390,10 +1447,15 @@ function setupAIDragDrop() {
     document.body.appendChild(dropzoneOverlay);
     
     let dragCounter = 0;
+    let isDraggingFileItem = false;
     
     document.addEventListener('dragenter', (e) => {
         dragCounter++;
+        // Check if we're dragging a file item from the case files tree
         if (e.target.closest('.file-item')) {
+            isDraggingFileItem = true;
+        }
+        if (isDraggingFileItem) {
             dropzoneOverlay.classList.add('active');
         }
     });
@@ -1402,11 +1464,15 @@ function setupAIDragDrop() {
         dragCounter--;
         if (dragCounter === 0) {
             dropzoneOverlay.classList.remove('active');
+            isDraggingFileItem = false;
         }
     });
     
     document.addEventListener('dragover', (e) => {
         e.preventDefault();
+        if (isDraggingFileItem) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
     });
     
     document.addEventListener('drop', (e) => {
@@ -1463,6 +1529,8 @@ function removeAttachment(index) {
 // Initialize AI drag and drop on load
 document.addEventListener('DOMContentLoaded', () => {
     setupAIDragDrop();
+    loadAPIKeys();
+    setupAPIKeyListeners();
 });
 
 // Make functions globally available
