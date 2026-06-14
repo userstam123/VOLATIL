@@ -504,14 +504,17 @@ def ai_chat():
     model = data.get('model', 'qwen')
     prompt = data.get('prompt', '')
     attachments = data.get('attachments', [])
+    api_key = data.get('api_key', '')
     
     # Check for real API keys (optional - falls back to offline analyzer)
-    gemini_key = os.environ.get('GEMINI_API_KEY')
-    grok_key = os.environ.get('GROK_API_KEY')
-    qwen_key = os.environ.get('QWEN_API_KEY')
+    # Priority: 1) User-provided API key from frontend, 2) Environment variable
+    gemini_key = api_key if model == 'gemini' and api_key else os.environ.get('GEMINI_API_KEY')
+    grok_key = api_key if model == 'grok' and api_key else os.environ.get('GROK_API_KEY')
+    qwen_key = api_key if model == 'qwen' and api_key else os.environ.get('QWEN_API_KEY')
     
     # If API key exists and user wants real AI, forward to external API
     # For now, we'll use the offline Volatility Smart Analyzer
+    # TODO: Implement real API forwarding when keys are provided
     
     response_text = generate_offline_ai_analysis(model, prompt, attachments)
     
