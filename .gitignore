@@ -1,0 +1,58 @@
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+dist/
+build/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+*.pyc
+__pycache__/
+.Python
+*.pyo
+*.pyd
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+
+# Web specific
+*.min.js
+*.min.css
+.sass-cache/
+*.css.map
+*.js.map
+
+# Security
+*.key
+*.pem
+*.crt
+*.cert
+```

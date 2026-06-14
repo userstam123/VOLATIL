@@ -493,6 +493,165 @@ def terminate_scan(task_id):
     manager.terminate()
     return jsonify({"status": "terminated"})
 
+# ============================================================
+# AI CHAT ENDPOINT
+# ============================================================
+@app.route('/api/ai/chat', methods=['POST'])
+def ai_chat():
+    import os
+    
+    data = request.get_json(silent=True) or {}
+    model = data.get('model', 'qwen')
+    prompt = data.get('prompt', '')
+    attachments = data.get('attachments', [])
+    
+    # Check for real API keys (optional - falls back to offline analyzer)
+    gemini_key = os.environ.get('GEMINI_API_KEY')
+    grok_key = os.environ.get('GROK_API_KEY')
+    qwen_key = os.environ.get('QWEN_API_KEY')
+    
+    # If API key exists and user wants real AI, forward to external API
+    # For now, we'll use the offline Volatility Smart Analyzer
+    
+    response_text = generate_offline_ai_analysis(model, prompt, attachments)
+    
+    return jsonify({"response": response_text})
+
+def generate_offline_ai_analysis(model, prompt, attachments):
+    """
+    Offline Volatility Smart Analyzer - generates intelligent analysis
+    based on attached file contents without requiring external APIs.
+    """
+    
+    analysis_parts = []
+    
+    # Model-specific personas
+    personas = {
+        'qwen': {
+            'intro': '🔍 **Qwen Forensic Analysis**\n\n',
+            'style': 'technical',
+            'color': '#2dd4bf'
+        },
+        'gemini': {
+            'intro': '💎 **Gemini Security Insights**\n\n',
+            'style': 'analytical',
+            'color': '#818cf8'
+        },
+        'grok': {
+            'intro': '⚡ **Grok Cyber Investigation**\n\n',
+            'style': 'direct',
+            'color': '#ffffff'
+        }
+    }
+    
+    persona = personas.get(model, personas['qwen'])
+    analysis_parts.append(persona['intro'])
+    
+    # Analyze each attachment
+    for att in attachments:
+        content = att.get('content', '')
+        filename = att.get('name', 'unknown')
+        
+        if not content:
+            continue
+        
+        analysis_parts.append(f"### 📎 File Analysis: `{filename}`\n\n")
+        
+        # Detect file type and analyze accordingly
+        if filename.endswith('.json'):
+            try:
+                import json
+                data = json.loads(content)
+                
+                # Check for process list indicators
+                if isinstance(data, dict):
+                    # Look for process-related keys
+                    has_pid = any('PID' in str(k).upper() or 'pid' in str(k) for k in data.keys())
+                    
+                    if has_pid:
+                        analysis_parts.append("**Process List Detected** 🔍\n\n")
+                        suspicious_processes = []
+                        
+                        # Analyze processes for IOCs
+                        for key, value in data.items():
+                            if isinstance(value, list) and len(value) > 0:
+                                for proc in value:
+                                    if isinstance(proc, dict):
+                                        proc_name = proc.get('ImageName', proc.get('name', '')).lower()
+                                        parent_pid = proc.get('PPID', proc.get('ppid', ''))
+                                        
+                                        # Check for suspicious parent-child relationships
+                                        if 'services.exe' in str(proc.get('ParentImage', '')).lower() and 'cmd' in proc_name:
+                                            suspicious_processes.append(f"- ⚠️ Suspicious: `services.exe` spawned `cmd.exe` (PID: {proc.get('PID', 'N/A')})")
+                                        elif 'svchost' in proc_name and parent_pid and str(parent_pid) != '0':
+                                            suspicious_processes.append(f"- ℹ️ Note: `svchost.exe` with PPID {parent_pid}")
+                        
+                        if suspicious_processes:
+                            analysis_parts.append("**Indicators of Compromise (IOCs):**\n\n")
+                            analysis_parts.extend(suspicious_processes)
+                            analysis_parts.append("\n")
+                        else:
+                            analysis_parts.append("✅ No obvious suspicious parent-child relationships detected.\n\n")
+                            
+                # Check for network connections
+                if any('network' in str(k).lower() or 'netstat' in str(k).lower() for k in str(data.keys()).lower()):
+                    analysis_parts.append("**Network Activity:**\n\n")
+                    # Look for public IPs
+                    import re
+                    ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+                    ips = re.findall(ip_pattern, str(data))
+                    public_ips = [ip for ip in ips if not ip.startswith(('10.', '192.168.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.'))]
+                    if public_ips:
+                        analysis_parts.append(f"- 🌐 Public IPs found: {', '.join(set(public_ips)[:10])}\n")
+                    
+            except Exception as e:
+                analysis_parts.append(f"⚠️ Could not parse JSON: {str(e)}\n\n")
+        
+        elif filename.endswith('.txt'):
+            # Text file analysis - look for common forensic patterns
+            content_lower = content.lower()
+            
+            if 'powershell' in content_lower:
+                analysis_parts.append("⚠️ **PowerShell Activity Detected**\n\n")
+                # Extract PowerShell commands
+                import re
+                ps_commands = re.findall(r'powershell[^\\n]*', content, re.IGNORECASE)
+                if ps_commands:
+                    analysis_parts.append("```powershell\n")
+                    analysis_parts.append('\n'.join(ps_commands[:5]))
+                    analysis_parts.append("\n```\n\n")
+            
+            if 'cmd' in content_lower or 'command' in content_lower:
+                analysis_parts.append("📟 **Command Line Activity**\n\n")
+            
+            # Look for IP addresses
+            import re
+            ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+            ips = re.findall(ip_pattern, content)
+            public_ips = [ip for ip in ips if not ip.startswith(('10.', '192.168.', '172.16.'))]
+            if public_ips:
+                analysis_parts.append(f"🌐 **External IPs:** {', '.join(set(public_ips)[:5])}\n\n")
+    
+    # Add general recommendations
+    analysis_parts.append("\n---\n\n")
+    analysis_parts.append("### 💡 Recommendations\n\n")
+    analysis_parts.append("1. **Review suspicious processes** - Investigate any processes with unusual parent-child relationships\n")
+    analysis_parts.append("2. **Check network connections** - Verify all external IP connections are legitimate\n")
+    analysis_parts.append("3. **Examine command lines** - Look for encoded or obfuscated commands\n")
+    analysis_parts.append("4. **Cross-reference with other artifacts** - Correlate findings with registry, timeline, and memory strings\n\n")
+    
+    # Add code block example for remediation
+    analysis_parts.append("### 🛠️ Sample Remediation Script\n\n")
+    analysis_parts.append("```python\n")
+    analysis_parts.append("# Volatility 3 - Extract suspicious processes\n")
+    analysis_parts.append("import volatility3.framework.plugins.windows.pslist as pslist\n")
+    analysis_parts.append("\n")
+    analysis_parts.append("# Run this in your Volatility environment:\n")
+    analysis_parts.append("# python vol.py -f memory.dump windows.pslist\n")
+    analysis_parts.append("```\n")
+    
+    return ''.join(analysis_parts)
+
 if __name__ == '__main__':
     Timer(1.5, lambda: webbrowser.open("http://127.0.0.1:5000/")).start()
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)

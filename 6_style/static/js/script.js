@@ -802,8 +802,10 @@ async function loadFileTree() {
         files.forEach(file => {
             const div = document.createElement('div');
             div.className = 'file-item';
+            div.draggable = true;
+            div.dataset.fileName = file;
             const nameSpan = document.createElement('span');
-            nameSpan.className = 'file-item-name'; nameSpan.textContent = file; nameSpan.title = file;
+            nameSpan.className = 'file-item-name'; nameSpan.textContent = file; nameSpan.title = file; nameSpan.title = file;
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'file-actions';
             const editBtn = document.createElement('button');
@@ -817,6 +819,13 @@ async function loadFileTree() {
             deleteBtn.onclick = (e) => { e.stopPropagation(); promptDeleteFile(file); };
             actionsDiv.appendChild(editBtn); actionsDiv.appendChild(renameBtn); actionsDiv.appendChild(deleteBtn);
             div.appendChild(nameSpan); div.appendChild(actionsDiv);
+            
+            // Drag start handler for AI sidebar drop
+            div.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', `file:${file}`);
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+            
             div.onclick = () => handleSidebarFileClick(file);
             tree.appendChild(div);
         });
@@ -879,10 +888,128 @@ async function openFileTab(filename, isFinished = false, forceProblematic = fals
     if (document.getElementById(`tab-btn-${filename}`)) { switchTab(filename); if (isEdit) toggleEditMode(filename); return; }
     createTab(filename, filename, false, isFinished, forceProblematic, false, isEdit);
     const consoleContainer = document.getElementById(`tab-content-${filename}`);
-    if (isEdit) renderEditMode(consoleContainer, filename);
-    else consoleContainer.innerHTML = `<iframe src="/api/files/html/${currentFolder}/${encodeURIComponent(filename)}" style="width:100%;height:100%;border:none;background:#1e293b;flex:1;" data-filename="${filename}"></iframe>`;
+    
+    // Check if JSON file - render as interactive table
+    if (filename.endsWith('.json')) {
+        await renderJSONTable(consoleContainer, filename);
+    } else if (isEdit) {
+        renderEditMode(consoleContainer, filename);
+    } else {
+        consoleContainer.innerHTML = `<iframe src="/api/files/html/${currentFolder}/${encodeURIComponent(filename)}" style="width:100%;height:100%;border:none;background:#1e293b;flex:1;" data-filename="${filename}"></iframe>`;
+    }
+    
     openFileTabs.set(filename, { lastSize: -1 });
     checkFileSize(filename);
+}
+
+async function renderJSONTable(container, filename) {
+    try {
+        const res = await fetch(`/api/files/raw/${currentFolder}/${encodeURIComponent(filename)}`);
+        const jsonText = await res.text();
+        let jsonData;
+        
+        try {
+            jsonData = JSON.parse(jsonText);
+        } catch (e) {
+            container.innerHTML = `<div class="console-output">Error parsing JSON: ${e.message}</div>`;
+            return;
+        }
+        
+        // Convert to array of objects for table rendering
+        let tableData = [];
+        let columns = new Set();
+        
+        if (Array.isArray(jsonData)) {
+            tableData = jsonData;
+            tableData.forEach(row => Object.keys(row).forEach(k => columns.add(k)));
+        } else if (typeof jsonData === 'object') {
+            // Handle nested object structure (like Volatility output)
+            for (const key in jsonData) {
+                if (Array.isArray(jsonData[key])) {
+                    jsonData[key].forEach(item => {
+                        if (typeof item === 'object') {
+                            const row = { _group: key, ...item };
+                            tableData.push(row);
+                            Object.keys(row).forEach(k => columns.add(k));
+                        }
+                    });
+                } else if (typeof jsonData[key] === 'object') {
+                    const row = { _group: key, ...jsonData[key] };
+                    tableData.push(row);
+                    Object.keys(row).forEach(k => columns.add(k));
+                }
+            }
+        }
+        
+        const columnsArr = Array.from(columns);
+        
+        container.innerHTML = `
+            <div class="json-table-container">
+                <div class="json-table-toolbar">
+                    <input type="text" class="json-table-search" placeholder="🔍 Search table...">
+                    <button class="btn-process-tree" onclick="renderProcessTree('${filename}')">🌲 Interactive Process Tree</button>
+                </div>
+                <div class="json-table-wrapper">
+                    <table class="json-data-table">
+                        <thead>
+                            <tr>${columnsArr.map(col => `<th data-column="${col}">${col}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            ${tableData.slice(0, 100).map(row => `
+                                <tr>${columnsArr.map(col => `<td>${row[col] !== undefined ? String(row[col]) : ''}</td>`).join('')}</tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="json-table-info">
+                    <span>Showing ${Math.min(tableData.length, 100)} of ${tableData.length} rows</span>
+                    <span>${filename}</span>
+                </div>
+            </div>
+        `;
+        
+        // Add search functionality
+        const searchInput = container.querySelector('.json-table-search');
+        const tbody = container.querySelector('.json-data-table tbody');
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            allRows.forEach((row, idx) => {
+                const matches = tableData[idx] && Object.values(tableData[idx]).some(val => 
+                    String(val).toLowerCase().includes(query)
+                );
+                row.style.display = matches ? '' : 'none';
+            });
+        });
+        
+        // Add column sorting
+        container.querySelectorAll('.json-data-table th').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.column;
+                const sorted = [...tableData].sort((a, b) => {
+                    const aVal = a[col] || '';
+                    const bVal = b[col] || '';
+                    return String(aVal).localeCompare(String(bVal));
+                });
+                
+                // Re-render with sorted data
+                const newHtml = sorted.slice(0, 100).map(row => 
+                    `<tr>${columnsArr.map(c => `<td>${row[c] !== undefined ? String(row[c]) : ''}</td>`).join('')}</tr>`
+                ).join('');
+                tbody.innerHTML = newHtml;
+                
+                // Update sort indicators
+                container.querySelectorAll('.json-data-table th').forEach(h => {
+                    h.classList.remove('sorted-asc', 'sorted-desc');
+                });
+                th.classList.add('sorted-asc');
+            });
+        });
+        
+    } catch (err) {
+        container.innerHTML = `<div class="console-output">Error loading JSON: ${err.message}</div>`;
+    }
 }
 
 async function renderEditMode(container, filename) {
@@ -1068,4 +1195,480 @@ function closeTab(id, wasRunning) {
     const remainingTabs = document.querySelectorAll('.tab');
     if (remainingTabs.length > 0) switchTab(remainingTabs[0].id.replace('tab-btn-', ''));
     setStatus('Ready', 'idle');
+}
+
+// ============================================================
+// AI SIDEBAR FUNCTIONALITY
+// ============================================================
+let currentAIModel = 'qwen';
+let aiAttachments = [];
+let aiSidebarCollapsed = true;
+
+const aiSidebar = document.getElementById('ai-sidebar');
+const aiCollapseBtn = document.getElementById('ai-collapse-btn');
+const aiTabs = document.querySelectorAll('.ai-tab');
+const aiChatHistory = document.getElementById('ai-chat-history');
+const aiPromptInput = document.getElementById('ai-prompt-input');
+const aiSendBtn = document.getElementById('ai-send-btn');
+const aiAttachmentStatus = document.getElementById('ai-attachment-status');
+
+// Toggle AI sidebar collapse/expand
+if (aiCollapseBtn) {
+    aiCollapseBtn.addEventListener('click', () => {
+        aiSidebarCollapsed = !aiSidebarCollapsed;
+        aiSidebar.classList.toggle('collapsed', aiSidebarCollapsed);
+        aiCollapseBtn.textContent = aiSidebarCollapsed ? '▶' : '◀';
+    });
+}
+
+// AI model tab switching
+aiTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        aiTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentAIModel = tab.dataset.model;
+        addAIMessage(`Switched to ${currentAIModel.toUpperCase()} model.`, 'assistant', currentAIModel);
+    });
+});
+
+// Send AI message
+if (aiSendBtn && aiPromptInput) {
+    aiSendBtn.addEventListener('click', sendAIMessage);
+    aiPromptInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendAIMessage();
+        }
+    });
+}
+
+async function sendAIMessage() {
+    const prompt = aiPromptInput.value.trim();
+    if (!prompt && aiAttachments.length === 0) return;
+    
+    // Add user message
+    if (prompt) {
+        addAIMessage(prompt, 'user', currentAIModel);
+    }
+    
+    aiPromptInput.value = '';
+    aiSendBtn.disabled = true;
+    
+    try {
+        // Prepare attachments data
+        const attachmentsData = aiAttachments.map(att => ({
+            name: att.name,
+            content: att.content,
+            type: att.type
+        }));
+        
+        const response = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: currentAIModel,
+                prompt: prompt,
+                attachments: attachmentsData
+            })
+        });
+        
+        const data = await response.json();
+        if (data.response) {
+            addAIMessage(data.response, 'assistant', currentAIModel);
+        } else if (data.error) {
+            addAIMessage(`Error: ${data.error}`, 'assistant', currentAIModel);
+        }
+    } catch (error) {
+        addAIMessage(`Connection error: ${error.message}`, 'assistant', currentAIModel);
+    } finally {
+        aiSendBtn.disabled = false;
+        aiAttachments = [];
+        updateAttachmentStatus();
+    }
+}
+
+function addAIMessage(content, role, model = 'qwen') {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `ai-message ${role} model-${model}`;
+    
+    // Parse markdown-like code blocks
+    const parsedContent = parseAICodeBlocks(content);
+    msgDiv.innerHTML = parsedContent;
+    
+    aiChatHistory.appendChild(msgDiv);
+    aiChatHistory.scrollTop = aiChatHistory.scrollHeight;
+}
+
+function parseAICodeBlocks(content) {
+    // Simple code block detection and rendering
+    let html = content;
+    
+    // Replace ```language ... ``` blocks with styled code blocks
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        const language = lang || 'text';
+        const safeCode = escapeHtml(code.trim());
+        const filename = `${currentAIModel}_output.${getFileExtension(language)}`;
+        return `
+<div class="ai-code-block">
+    <div class="ai-code-header">
+        <span>${language.toUpperCase()}</span>
+        <div class="ai-code-actions">
+            <button class="ai-code-action-btn" onclick="copyCode(this)">📋 Copy</button>
+            <button class="ai-code-action-btn" onclick="saveCodeToCase(this, '${filename}', '${safeCode.substring(0, 50)}')">💾 Save to Case</button>
+        </div>
+    </div>
+    <div class="ai-code-content">${safeCode}</div>
+</div>`;
+    });
+    
+    // Convert line breaks
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getFileExtension(lang) {
+    const extMap = {
+        python: 'py', py: 'py', javascript: 'js', js: 'js',
+        json: 'json', html: 'html', css: 'css', bash: 'sh',
+        shell: 'sh', powershell: 'ps1', text: 'txt'
+    };
+    return extMap[lang.toLowerCase()] || 'txt';
+}
+
+function copyCode(btn) {
+    const codeBlock = btn.closest('.ai-code-block');
+    const codeContent = codeBlock.querySelector('.ai-code-content').textContent;
+    navigator.clipboard.writeText(codeContent).then(() => {
+        showToast('Code copied to clipboard!', 'success');
+    }).catch(err => {
+        showToast('Failed to copy code', 'error');
+    });
+}
+
+function saveCodeToCase(btn, defaultName, preview) {
+    const filename = prompt('Enter filename for the new case file:', defaultName);
+    if (!filename) return;
+    
+    const codeBlock = btn.closest('.ai-code-block');
+    const codeContent = codeBlock.querySelector('.ai-code-content').textContent;
+    
+    fetch('/api/files/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            folder: currentFolder,
+            filename: filename,
+            content: codeContent
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            showToast(data.error, 'error');
+        } else {
+            showToast(`File "${filename}" saved to case!`, 'success');
+            loadFileTree();
+        }
+    })
+    .catch(err => {
+        showToast('Failed to save file', 'error');
+    });
+}
+
+// Drag and drop file attachment
+function setupAIDragDrop() {
+    const dropzoneOverlay = document.createElement('div');
+    dropzoneOverlay.className = 'ai-dropzone-overlay';
+    dropzoneOverlay.innerHTML = '<div class="ai-dropzone-text">📎 Drop files to analyze with AI</div>';
+    document.body.appendChild(dropzoneOverlay);
+    
+    let dragCounter = 0;
+    
+    document.addEventListener('dragenter', (e) => {
+        dragCounter++;
+        if (e.target.closest('.file-item')) {
+            dropzoneOverlay.classList.add('active');
+        }
+    });
+    
+    document.addEventListener('dragleave', (e) => {
+        dragCounter--;
+        if (dragCounter === 0) {
+            dropzoneOverlay.classList.remove('active');
+        }
+    });
+    
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    
+    document.addEventListener('drop', (e) => {
+        dragCounter = 0;
+        dropzoneOverlay.classList.remove('active');
+        e.preventDefault();
+        
+        // Check if dropping a file item from the case files tree
+        const draggedFileId = e.dataTransfer.getData('text/plain');
+        if (draggedFileId && draggedFileId.startsWith('file:')) {
+            const fileName = draggedFileId.replace('file:', '');
+            attachFileToAI(fileName);
+        }
+    });
+}
+
+function attachFileToAI(fileName) {
+    // Peek file contents
+    fetch(`/api/files/peek/${currentFolder}/${fileName}`)
+        .then(res => res.json())
+        .then(data => {
+            aiAttachments.push({
+                name: fileName,
+                content: data.head,
+                size: data.size,
+                type: fileName.endsWith('.json') ? 'json' : 'text'
+            });
+            updateAttachmentStatus();
+            showToast(`📎 ${fileName} attached to AI chat`, 'success');
+        })
+        .catch(err => {
+            showToast('Failed to attach file', 'error');
+        });
+}
+
+function updateAttachmentStatus() {
+    aiAttachmentStatus.innerHTML = '';
+    aiAttachments.forEach((att, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'ai-attachment-chip';
+        chip.innerHTML = `
+            <span>📎 ${att.name}</span>
+            <span class="remove-attachment" onclick="removeAttachment(${index})">×</span>
+        `;
+        aiAttachmentStatus.appendChild(chip);
+    });
+}
+
+function removeAttachment(index) {
+    aiAttachments.splice(index, 1);
+    updateAttachmentStatus();
+}
+
+// Initialize AI drag and drop on load
+document.addEventListener('DOMContentLoaded', () => {
+    setupAIDragDrop();
+});
+
+// Make functions globally available
+window.copyCode = copyCode;
+window.saveCodeToCase = saveCodeToCase;
+window.removeAttachment = removeAttachment;
+window.renderProcessTree = renderProcessTree;
+
+// ============================================================
+// PROCESS TREE VISUALIZATION
+// ============================================================
+function renderProcessTree(filename) {
+    // Find the current tab content
+    const tabContent = document.getElementById(`tab-content-${filename}`);
+    if (!tabContent) return;
+    
+    // Re-fetch and build tree
+    fetch(`/api/files/raw/${currentFolder}/${encodeURIComponent(filename)}`)
+        .then(res => res.text())
+        .then(jsonText => {
+            try {
+                const jsonData = JSON.parse(jsonText);
+                
+                // Extract process data
+                let processes = [];
+                
+                if (Array.isArray(jsonData)) {
+                    processes = jsonData;
+                } else if (typeof jsonData === 'object') {
+                    for (const key in jsonData) {
+                        if (Array.isArray(jsonData[key])) {
+                            processes.push(...jsonData[key]);
+                        } else if (typeof jsonData[key] === 'object') {
+                            processes.push(jsonData[key]);
+                        }
+                    }
+                }
+                
+                // Build tree structure
+                const treeContainer = document.createElement('div');
+                treeContainer.className = 'process-tree-container';
+                treeContainer.innerHTML = `
+                    <h3 style="color: var(--primary); margin-bottom: 15px;">🌲 Process Tree - ${filename}</h3>
+                    <div id="tree-root"></div>
+                    <div id="process-inspector" class="process-tree-inspector" style="display:none;"></div>
+                `;
+                
+                tabContent.innerHTML = '';
+                tabContent.appendChild(treeContainer);
+                
+                // Build PID -> PPID mapping
+                const pidMap = new Map();
+                const childrenMap = new Map();
+                
+                processes.forEach(proc => {
+                    const pid = String(proc.PID || proc.pid || proc.Pid || '');
+                    const ppid = String(proc.PPID || proc.ppid || proc.ParentPid || '0');
+                    
+                    if (pid) {
+                        pidMap.set(pid, proc);
+                        if (!childrenMap.has(ppid)) {
+                            childrenMap.set(ppid, []);
+                        }
+                        childrenMap.get(ppid).push(pid);
+                    }
+                });
+                
+                // Find root processes (PPID = 0 or not found)
+                const rootPids = [];
+                pidMap.forEach((proc, pid) => {
+                    const ppid = String(proc.PPID || proc.ppid || proc.ParentPid || '0');
+                    if (ppid === '0' || !pidMap.has(ppid)) {
+                        rootPids.push(pid);
+                    }
+                });
+                
+                const treeRoot = document.getElementById('tree-root');
+                
+                // Render tree recursively
+                function renderNode(pid, depth = 0) {
+                    const proc = pidMap.get(pid);
+                    if (!proc) return null;
+                    
+                    const nodeDiv = document.createElement('div');
+                    nodeDiv.className = 'process-tree-node';
+                    
+                    const itemName = proc.ImageName || proc.name || proc.ProcessName || 'unknown';
+                    const isSuspicious = checkSuspiciousProcess(proc);
+                    
+                    nodeDiv.innerHTML = `
+                        <div class="process-tree-item ${isSuspicious ? 'suspicious' : ''}" data-pid="${pid}">
+                            <span class="process-tree-toggle">${childrenMap.has(pid) && childrenMap.get(pid).length > 0 ? '▶' : '•'}</span>
+                            <span class="process-tree-pid">${pid}</span>
+                            <span class="process-tree-name">${itemName}</span>
+                        </div>
+                        <div class="process-tree-children"></div>
+                    `;
+                    
+                    const item = nodeDiv.querySelector('.process-tree-item');
+                    const childrenContainer = nodeDiv.querySelector('.process-tree-children');
+                    const toggle = nodeDiv.querySelector('.process-tree-toggle');
+                    
+                    // Click to select and show details
+                    item.addEventListener('click', () => {
+                        document.querySelectorAll('.process-tree-item').forEach(i => i.classList.remove('selected'));
+                        item.classList.add('selected');
+                        showProcessInspector(proc);
+                    });
+                    
+                    // Toggle children
+                    toggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const hasChildren = childrenMap.has(pid) && childrenMap.get(pid).length > 0;
+                        if (hasChildren) {
+                            const isExpanded = childrenContainer.classList.contains('expanded');
+                            childrenContainer.classList.toggle('expanded', !isExpanded);
+                            toggle.classList.toggle('expanded', !isExpanded);
+                        }
+                    });
+                    
+                    // Render children
+                    const childPids = childrenMap.get(pid) || [];
+                    childPids.forEach(childPid => {
+                        const childNode = renderNode(childPid, depth + 1);
+                        if (childNode) childrenContainer.appendChild(childNode);
+                    });
+                    
+                    if (childPids.length > 0) {
+                        childrenContainer.classList.add('expanded');
+                        toggle.classList.add('expanded');
+                    }
+                    
+                    return nodeDiv;
+                }
+                
+                // Render all root nodes
+                rootPids.sort().forEach(pid => {
+                    const node = renderNode(pid);
+                    if (node) treeRoot.appendChild(node);
+                });
+                
+                // Show inspector function
+                function showProcessInspector(proc) {
+                    const inspector = document.getElementById('process-inspector');
+                    const pid = proc.PID || proc.pid || 'N/A';
+                    const ppid = proc.PPID || proc.ppid || 'N/A';
+                    const name = proc.ImageName || proc.name || 'N/A';
+                    const threads = proc.Threads || proc.num_threads || 'N/A';
+                    const handles = proc.Handles || 'N/A';
+                    const cmdline = proc.CommandLine || proc.cmdline || 'N/A';
+                    const path = proc.Path || proc.ImageFileName || 'N/A';
+                    
+                    inspector.style.display = 'block';
+                    inspector.innerHTML = `
+                        <h3>📋 Process Details</h3>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">Process Name:</span>
+                            <span class="process-tree-inspector-value">${name}</span>
+                        </div>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">PID:</span>
+                            <span class="process-tree-inspector-value">${pid}</span>
+                        </div>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">PPID:</span>
+                            <span class="process-tree-inspector-value">${ppid}</span>
+                        </div>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">Threads:</span>
+                            <span class="process-tree-inspector-value">${threads}</span>
+                        </div>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">Handles:</span>
+                            <span class="process-tree-inspector-value">${handles}</span>
+                        </div>
+                        <div class="process-tree-inspector-row">
+                            <span class="process-tree-inspector-label">Path:</span>
+                            <span class="process-tree-inspector-value" style="word-break:break-all;">${path}</span>
+                        </div>
+                        <div class="process-tree-inspector-row" style="flex-direction:column;align-items:flex-start;">
+                            <span class="process-tree-inspector-label">Command Line:</span>
+                            <span class="process-tree-inspector-value" style="word-break:break-all;margin-top:4px;">${cmdline}</span>
+                        </div>
+                    `;
+                }
+                
+                function checkSuspiciousProcess(proc) {
+                    const name = (proc.ImageName || proc.name || '').toLowerCase();
+                    const parent = (proc.ParentImage || '').toLowerCase();
+                    
+                    // Suspicious patterns
+                    if (parent.includes('services.exe') && name.includes('cmd')) return true;
+                    if (name.includes('svchost') && parent && !parent.includes('services')) return true;
+                    if (name.includes('powershell') && parent && !parent.includes('explorer')) return true;
+                    
+                    return false;
+                }
+                
+            } catch (e) {
+                tabContent.innerHTML = `<div class="console-output">Error building process tree: ${e.message}</div>`;
+            }
+        })
+        .catch(err => {
+            const tabContent = document.getElementById(`tab-content-${filename}`);
+            if (tabContent) {
+                tabContent.innerHTML = `<div class="console-output">Error loading process tree: ${err.message}</div>`;
+            }
+        });
 }
