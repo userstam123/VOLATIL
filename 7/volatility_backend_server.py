@@ -34,7 +34,7 @@ Path(FINDINGS_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def normalize_path_for_comparison(path):
-    """
+    r"""
     Normalizes a path for comparison by removing the drive letter.
     E.g., 'E:\Case\dump.mem' -> '\Case\dump.mem'
     This allows matching across different drive assignments.
