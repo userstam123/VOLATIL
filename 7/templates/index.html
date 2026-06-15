@@ -44,6 +44,7 @@
                 <div class="section-header">
                     <h2>Case Files</h2>
                     <div>
+                        <button id="btn-open-folder" class="btn btn-compact btn-secondary" title="Open investigation folder in File Explorer">📁</button>
                         <button id="btn-create-file" class="btn btn-compact btn-secondary">+ New</button>
                         <button id="btn-refresh-files" class="btn btn-compact btn-secondary">↻</button>
                     </div>
@@ -54,6 +55,16 @@
                     <select id="file-sort-select">
                         <option value="name-asc">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
+                        <option value="type-asc">Type (A-Z)</option>
+                        <option value="type-desc">Type (Z-A)</option>
+                    </select>
+                </div>
+                <div class="filter-controls">
+                    <label style="font-size:10px;color:var(--ui-text-muted);">Filter:</label>
+                    <select id="file-filter-select">
+                        <option value="all">All Files</option>
+                        <option value="txt">Text (.txt)</option>
+                        <option value="json">JSON (.json)</option>
                     </select>
                 </div>
                 <div id="file-tree" class="file-tree"><div class="empty-state">No active case</div></div>

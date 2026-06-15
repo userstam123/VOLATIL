@@ -511,8 +511,21 @@ def start_scan():
     mem_file = data.get('memory_file'); plugin = data.get('plugin'); inv_name = data.get('inv_name', 'UnknownCase'); params = data.get('params', [])
     if not mem_file or not plugin: return jsonify({"error": "Missing parameters"}), 400
     task_id = str(uuid.uuid4())
+    
+    # Check if this is a dump plugin that should output to the dump subfolder
+    dump_plugins = ['dumpfiles', 'memmap', 'vadinfo', 'dlldump', 'moddump', 'filescan', 'dumpregistry']
+    is_dump_plugin = any(dp in plugin.lower() for dp in [d.lower() for d in dump_plugins])
+    
     cmd = [sys.executable, VOL_PATH, "-f", mem_file, plugin]
     if params: cmd.extend(params)
+    
+    # If it's a dump plugin, add output directory parameter pointing to dump subfolder
+    if is_dump_plugin:
+        dump_folder_path = os.path.join(FINDINGS_DIR, inv_name, "dump")
+        os.makedirs(dump_folder_path, exist_ok=True)
+        # Add --output-dir parameter for dump plugins
+        cmd.extend(['--output-dir', dump_folder_path])
+    
     cmd_line_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
     folder_path = os.path.join(FINDINGS_DIR, inv_name); os.makedirs(folder_path, exist_ok=True)
     plugin_safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', plugin)

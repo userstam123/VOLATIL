@@ -36,6 +36,54 @@ body.light-mode {
   --space-text: #334155;
 }
 
+/* Light mode background: Sun shining over flowing water */
+body.light-mode {
+  background: linear-gradient(180deg, #87CEEB 0%, #B0E0F6 30%, #4FC3F7 60%, #29B6F6 85%, #0288D1 100%) !important;
+}
+
+body.light-mode::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150vmax;
+  height: 150vmax;
+  background: radial-gradient(circle, rgba(255,255,200,0.9) 0%, rgba(255,255,150,0.6) 20%, rgba(255,255,100,0.3) 40%, transparent 70%);
+  border-radius: 50%;
+  z-index: -1;
+  animation: sunGlow 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+body.light-mode::after {
+  content: '';
+  position: fixed;
+  bottom: -30%;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, 
+    transparent 0%, 
+    rgba(79, 195, 247, 0.3) 20%, 
+    rgba(41, 182, 249, 0.5) 50%, 
+    rgba(2, 136, 209, 0.7) 80%, 
+    rgba(1, 87, 155, 0.9) 100%);
+  z-index: -1;
+  animation: waterFlow 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes sunGlow {
+  0% { transform: translateX(-50%) scale(1); opacity: 0.8; }
+  100% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+}
+
+@keyframes waterFlow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--space-bg); }
 ::-webkit-scrollbar-thumb { background: var(--ui-scrollbar-thumb); border-radius: 4px; }
@@ -59,7 +107,7 @@ body {
 }
 
 body.light-mode {
-  background: radial-gradient(ellipse at bottom, #f8fafc 0%, #e2e8f0 100%) !important;
+  background: linear-gradient(180deg, #87CEEB 0%, #B0E0F6 30%, #4FC3F7 60%, #29B6F6 85%, #0288D1 100%) !important;
 }
 
 .app-container { display: flex; height: 100vh; position: relative; z-index: 1; }
