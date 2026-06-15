@@ -8,10 +8,10 @@ body {
 }
 
 body.light-mode {
-  background: radial-gradient(ellipse at bottom, #f8fafc 0%, #e2e8f0 100%) !important;
+  /* Sun and water background handled in style.css */
 }
 
-/* Hide stars in light mode for clean look */
+/* Hide stars in light mode for clean sun/water look */
 body.light-mode #stars,
 body.light-mode #stars2,
 body.light-mode #stars3 {
@@ -162,4 +162,4 @@ body.light-mode .rocket-wrapper {
 .rocket-wrapper:not(.flying) {
   animation: rocket-float 4s ease-in-out infinite;
 }
-
+
