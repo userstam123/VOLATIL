@@ -285,17 +285,14 @@ body.light-mode .search-box input:focus {
 
 .sort-controls { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
 .sort-controls select {
-  flex: 1; padding: 4px 8px; border: 1px solid var(--ui-border); border-radius: 4px;
-  font-size: 11px; background: var(--space-bg); color: var(--ui-text);
+  flex: 1; padding: 5px 8px; border: 1px solid var(--ui-border); border-radius: 4px;
+  font-size: 11px; background: var(--space-bg); color: var(--ui-text); cursor: pointer;
 }
 
 .filter-controls { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
-.filter-controls select, .filter-controls button {
-  flex: 1; padding: 4px 8px; border: 1px solid var(--ui-border); border-radius: 4px;
-  font-size: 11px; background: var(--space-bg); color: var(--ui-text);
-}
-.filter-controls button {
-  flex: 0 0 auto; cursor: pointer;
+.filter-controls select {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--ui-border); border-radius: 4px;
+  font-size: 11px; background: var(--space-bg); color: var(--ui-text); cursor: pointer;
 }
 body.light-mode .filter-controls select {
   background: #f1f5f9; color: #334155; border-color: #cbd5e1;
@@ -400,7 +397,7 @@ body.light-mode .tab.error { background: #fee2e2; color: #dc2626; border-color: 
   font-size: 11px; padding: 12px; border-radius: 4px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;
   border: 1px solid var(--ui-border);
 }
-body.light-mode .console-output { background: #f1f5f9; color: #334155; }
+body.light-mode .console-output { background: #ffffff; color: #000000; }
 
 .edit-container { display: flex; flex-direction: column; height: 100%; width: 100%; }
 .edit-toolbar {

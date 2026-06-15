@@ -16,6 +16,7 @@ let runningTasks = 0;
 let pluginQueue = [];
 let currentPluginSearch = "";
 let currentFileSort = "name-asc";
+let currentFileFilter = "all";
 let currentFileSearch = "";
 let renameTargetFile = null;
 let allPlugins = [];
@@ -47,6 +48,7 @@ const pidModal = document.getElementById('pid-modal');
 const pidFileList = document.getElementById('pid-file-list');
 const btnConfirmPid = document.getElementById('btn-confirm-pid');
 const fileSortSelect = document.getElementById('file-sort-select');
+const fileFilterSelect = document.getElementById('file-filter-select');
 
 btnChooseDump.addEventListener('click', () => openFileBrowser());
 btnRunSelected.addEventListener('click', runAllSelectedPlugins);
@@ -57,6 +59,10 @@ if (btnCreateFile) btnCreateFile.addEventListener('click', () => promptCreateFil
 
 if (fileSortSelect) {
     fileSortSelect.addEventListener('change', (e) => { currentFileSort = e.target.value; loadFileTree(); });
+}
+
+if (fileFilterSelect) {
+    fileFilterSelect.addEventListener('change', (e) => { currentFileFilter = e.target.value; loadFileTree(); });
 }
 
 document.getElementById('file-search').addEventListener('input', (e) => {
@@ -1005,16 +1011,47 @@ async function loadFileTree() {
     try {
         const res = await fetch(`/api/files/${currentFolder}`);
         const data = await res.json();
-        let files = data.files;
+        let files = data.files || [];
+        
+        // Apply filter first
+        if (currentFileFilter && currentFileFilter !== 'all') {
+            files = files.filter(f => f.toLowerCase().endsWith('.' + currentFileFilter.toLowerCase()));
+        }
+        
+        // Then apply sort
         files.sort((a, b) => {
             switch (currentFileSort) {
                 case 'name-asc': return a.localeCompare(b);
                 case 'name-desc': return b.localeCompare(a);
+                case 'type-asc': {
+                    const extA = a.split('.').pop() || '';
+                    const extB = b.split('.').pop() || '';
+                    return extA.localeCompare(extB) || a.localeCompare(b);
+                }
+                case 'type-desc': {
+                    const extA = a.split('.').pop() || '';
+                    const extB = b.split('.').pop() || '';
+                    return extB.localeCompare(extA) || b.localeCompare(a);
+                }
+                case 'created-asc': 
+                case 'created-desc': {
+                    // Use file stats from backend if available, otherwise fallback to name
+                    const dateA = data.file_stats && data.file_stats[a] ? new Date(data.file_stats[a].created) : new Date(0);
+                    const dateB = data.file_stats && data.file_stats[b] ? new Date(data.file_stats[b].created) : new Date(0);
+                    return currentFileSort === 'created-asc' ? dateA - dateB : dateB - dateA;
+                }
+                case 'modified-asc':
+                case 'modified-desc': {
+                    // Use file stats from backend if available, otherwise fallback to name
+                    const dateA = data.file_stats && data.file_stats[a] ? new Date(data.file_stats[a].modified) : new Date(0);
+                    const dateB = data.file_stats && data.file_stats[b] ? new Date(data.file_stats[b].modified) : new Date(0);
+                    return currentFileSort === 'modified-asc' ? dateA - dateB : dateB - dateA;
+                }
                 default: return 0;
             }
         });
         tree.innerHTML = '';
-        if (files.length === 0) { tree.innerHTML = '<div class="empty-state">No files yet</div>'; return; }
+        if (files.length === 0) { tree.innerHTML = '<div class="empty-state">No files found</div>'; return; }
         files.forEach(file => {
             const div = document.createElement('div');
             div.className = 'file-item';
