@@ -82,6 +82,8 @@ body.light-mode {
   transition: all 0.3s ease;
   resize: horizontal;
   position: relative;
+  visibility: visible;
+  opacity: 1;
 }
 
 .ai-sidebar.collapsed {
@@ -91,6 +93,8 @@ body.light-mode {
   padding: 0;
   border: none;
   overflow: hidden;
+  visibility: hidden;
+  opacity: 0;
 }
 
 .ai-sidebar::after {
@@ -646,6 +650,12 @@ body.light-mode .plugin-item.selected { background: #dbeafe; color: #1e40af; }
   padding: 6px 8px; cursor: pointer; border-radius: 4px; display: flex;
   align-items: center; justify-content: space-between; gap: 8px;
   color: var(--ui-text); transition: background 0.2s; margin-bottom: 2px;
+}
+.file-item[draggable="true"] {
+  cursor: grab;
+}
+.file-item[draggable="true"]:active {
+  cursor: grabbing;
 }
 .file-item:hover { background: var(--ui-bg-card); }
 .file-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
