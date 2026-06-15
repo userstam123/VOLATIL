@@ -66,35 +66,50 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = rocketHTML;
     document.body.appendChild(container);
 
-    // Theme toggle rocket animation handler
+    // Theme toggle rocket animation handler - FIXED to always reset properly
     const themeToggleBtn = document.getElementById('theme-toggle');
     const rocket = document.getElementById('bg-rocket');
     let rocketTimer = null;
 
     if (themeToggleBtn && rocket) {
         themeToggleBtn.addEventListener('click', () => {
+            // Clear any existing timer
             if (rocketTimer) clearTimeout(rocketTimer);
+            
             const isLight = document.body.classList.contains('light-mode');
             
+            // ALWAYS force a complete reset first by removing all classes and forcing reflow
+            rocket.classList.remove('flying', 'instantly-below', 'reset-state');
+            
+            // Force reflow to ensure the browser registers the reset
+            void rocket.offsetHeight;
+            
             if (isLight) {
-                // Flying up and away
+                // Flying up and away (switching to light mode)
                 rocket.classList.add('flying');
                 rocketTimer = setTimeout(() => {
                     rocket.classList.remove('flying');
                 }, 1600);
             } else {
-                // Flying in from below
-                // 1. Position instantly below the screen (no transition)
+                // Flying in from below (switching to dark mode)
+                // 1. Add reset class to position instantly below without transition
+                rocket.classList.add('reset-state');
+                
+                // Force another reflow after setting reset state
+                void rocket.offsetHeight;
+                
+                // 2. Now add flying and remove reset to animate in
+                rocket.classList.remove('reset-state');
                 rocket.classList.add('instantly-below');
                 rocket.classList.add('flying');
                 
                 // Force reflow
                 void rocket.offsetHeight;
                 
-                // 2. Animate into place by removing the instant positioning
+                // 3. Remove instantly-below to trigger the fly-in animation
                 rocket.classList.remove('instantly-below');
                 
-                // 3. Clean up the intense flame classes after transition completes
+                // 4. Clean up after animation completes
                 rocketTimer = setTimeout(() => {
                     rocket.classList.remove('flying');
                 }, 1800);
