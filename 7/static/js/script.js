@@ -168,11 +168,16 @@ btnConfirmPid.addEventListener('click', async () => {
 const themeToggleBtn = document.getElementById('theme-toggle');
 if (themeToggleBtn) {
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') { document.body.classList.add('light-mode'); themeToggleBtn.textContent = '☀️'; }
+    if (savedTheme === 'light') { 
+        document.body.classList.add('light-mode'); 
+        document.documentElement.classList.add('light-mode');
+        themeToggleBtn.textContent = '☀️'; 
+    }
     else { themeToggleBtn.textContent = '🌙'; }
     themeToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('light-mode');
         const isLight = document.body.classList.contains('light-mode');
+        document.documentElement.classList.toggle('light-mode', isLight);
         themeToggleBtn.textContent = isLight ? '☀️' : '🌙';
         localStorage.setItem('theme', isLight ? 'light' : 'dark');
     });
@@ -451,13 +456,14 @@ async function selectMemoryFile(path) {
     closeFileBrowser();
     setStatus('Profiling memory dump...', 'running');
     showProgress(0, 100, 'Running OS detection...');
+    showLoadingOverlay();
     try {
         const res = await fetch('/api/initialize_dump', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ memory_file: currentMemFile })
         });
         const data = await res.json();
-        if (data.error) { showToast(data.error, 'error'); setStatus('Failed to profile dump', 'error'); hideProgress(); return; }
+        if (data.error) { showToast(data.error, 'error'); setStatus('Failed to profile dump', 'error'); hideProgress(); hideLoadingOverlay(); return; }
         currentOS = data.os;
         currentTempFolder = data.temp_folder;
         currentInfoPlugin = data.info_plugin;
@@ -479,8 +485,9 @@ async function selectMemoryFile(path) {
             newNameInput.focus();
         }
         hideProgress();
+        hideLoadingOverlay();
         invModal.style.display = 'flex';
-    } catch (err) { showToast(err.message, 'error'); setStatus('Error profiling dump', 'error'); hideProgress(); }
+    } catch (err) { showToast(err.message, 'error'); setStatus('Error profiling dump', 'error'); hideProgress(); hideLoadingOverlay(); }
 }
 
 function closeModal() {
