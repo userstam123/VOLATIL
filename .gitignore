@@ -1,3 +1,4 @@
+```gitignore
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -5,16 +6,20 @@ __pycache__/
 *.obj
 dist/
 build/
+target/
 
 # Dependencies
 .venv/
 venv/
 node_modules/
+.julia/
+zig-cache/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
+*.swo
 
 # Environment
 .env
@@ -24,19 +29,17 @@ node_modules/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Coverage reports
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
 coverage/
 htmlcov/
 .coverage
-
-# Python specific
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
-.Python
-*.so
 
 # Compressed files
 *.zip
@@ -61,3 +64,4 @@ __pycache__/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+```

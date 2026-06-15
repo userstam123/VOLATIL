@@ -183,7 +183,7 @@ document.getElementById('btn-continue-existing').addEventListener('click', async
     if (!selectedFolder) return;
     closeModal();
     setStatus(`Continuing case ${selectedFolder}...`, 'running');
-    showProgress(50, 100, 'Finalizing investigation...');
+    showLoadingOverlay();
     try {
         const res = await fetch('/api/finalize_investigation', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -191,7 +191,8 @@ document.getElementById('btn-continue-existing').addEventListener('click', async
         });
         const data = await res.json();
         await setupCaseUI(data.folder);
-    } catch (err) { showToast(err.message, 'error'); hideProgress(); }
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { hideLoadingOverlay(); hideProgress(); }
 });
 
 document.getElementById('btn-create-new').addEventListener('click', async () => {
@@ -199,7 +200,7 @@ document.getElementById('btn-create-new').addEventListener('click', async () => 
     if (!name) { showToast("Please enter an investigation name", "warning"); return; }
     closeModal();
     setStatus(`Creating new case ${name}...`, 'running');
-    showProgress(50, 100, 'Finalizing investigation...');
+    showLoadingOverlay();
     try {
         const res = await fetch('/api/finalize_investigation', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -207,7 +208,8 @@ document.getElementById('btn-create-new').addEventListener('click', async () => 
         });
         const data = await res.json();
         await setupCaseUI(data.folder);
-    } catch (err) { showToast(err.message, 'error'); hideProgress(); }
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { hideLoadingOverlay(); hideProgress(); }
 });
 
 function showToast(message, type = 'success') {
@@ -218,6 +220,19 @@ function showToast(message, type = 'success') {
     setTimeout(() => toast.remove(), 4000);
 }
 function setStatus(text, type) { statusBar.textContent = text; statusIndicator.className = `status-indicator ${type}`; }
+
+// Show loading overlay with spinning animation
+function showLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+// Hide loading overlay
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
 function showProgress(current, total, message) {
     progressContainer.style.display = 'block';
     const percentage = total > 0 ? (current / total) * 100 : 0;
@@ -378,12 +393,61 @@ async function openFileBrowser(path = '') {
     fileBrowserModal.style.display = 'flex';
     addToHistory(path);
     await loadBrowserDirectory(path, true);
+    // Load and display recent dumps
+    loadRecentDumps();
+}
+
+// Load recently used memory dumps from localStorage
+function loadRecentDumps() {
+    const recentList = document.getElementById('recent-dumps-list');
+    if (!recentList) return;
+    
+    try {
+        const recent = JSON.parse(localStorage.getItem('recent_dumps') || '[]');
+        
+        if (recent.length === 0) {
+            recentList.innerHTML = '<span style="font-size: 11px; color: var(--ui-text-muted);">No recent dumps</span>';
+            return;
+        }
+        
+        recentList.innerHTML = '';
+        recent.forEach(dumpPath => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-small btn-secondary';
+            btn.style.marginBottom = '0';
+            btn.textContent = dumpPath.split('\\').pop() || dumpPath;
+            btn.title = dumpPath;
+            btn.onclick = () => selectMemoryFile(dumpPath);
+            recentList.appendChild(btn);
+        });
+    } catch (err) {
+        console.error('Error loading recent dumps:', err);
+        recentList.innerHTML = '<span style="font-size: 11px; color: var(--ui-text-muted);">No recent dumps</span>';
+    }
+}
+
+// Save a dump path to recent list
+function saveToRecentDumps(path) {
+    try {
+        const recent = JSON.parse(localStorage.getItem('recent_dumps') || '[]');
+        // Remove if already exists (to move to front)
+        const filtered = recent.filter(p => p !== path);
+        // Add to front
+        filtered.unshift(path);
+        // Keep only last 5
+        const limited = filtered.slice(0, 5);
+        localStorage.setItem('recent_dumps', JSON.stringify(limited));
+    } catch (err) {
+        console.error('Error saving recent dump:', err);
+    }
 }
 
 function closeFileBrowser() { fileBrowserModal.style.display = 'none'; }
 
 async function selectMemoryFile(path) {
     currentMemFile = path;
+    // Save to recent dumps
+    saveToRecentDumps(path);
     closeFileBrowser();
     setStatus('Profiling memory dump...', 'running');
     showProgress(0, 100, 'Running OS detection...');
@@ -546,8 +610,15 @@ function renderPlugins(plugins) {
 }
 
 document.getElementById('plugin-search').addEventListener('input', (e) => {
-    currentPluginSearch = e.target.value.toLowerCase();
-    renderPlugins(allPlugins);
+    currentPluginSearch = e.target.value.toLowerCase().trim();
+    
+    // Filter plugins based on search query
+    const filteredPlugins = allPlugins.filter(plugin => 
+        plugin.toLowerCase().includes(currentPluginSearch)
+    );
+    
+    // Render filtered list
+    renderPlugins(filteredPlugins);
 });
 
 async function showPluginHelp(plugin) {
@@ -993,7 +1064,7 @@ async function promptDeleteFile(filename) {
 
 async function handleSidebarFileClick(file) {
     if (document.getElementById(`tab-btn-${file}`)) { switchTab(file); return; }
-    document.body.classList.add('loading');
+    showLoadingOverlay();
     try {
         const res = await fetch(`/api/files/peek/${currentFolder}/${encodeURIComponent(file)}`);
         if (!res.ok) throw new Error("Not found");
@@ -1010,7 +1081,7 @@ async function handleSidebarFileClick(file) {
         if (isProblematic) showIssuePopup(file, problemReason, file);
         else openFileTab(file, false, false, false);
     } catch (err) { showToast(`File ${file} not found`, 'error'); }
-    finally { document.body.classList.remove('loading'); }
+    finally { hideLoadingOverlay(); }
 }
 
 async function openFileTab(filename, isFinished = false, forceProblematic = false, isEdit = false) {

@@ -82,8 +82,15 @@ body.light-mode .rocket-wrapper {
   transition: transform 1.6s cubic-bezier(0.6, -0.1, 0.9, 0.4), opacity 1.4s ease-in;
 }
 
-/* Instant repositioning from below the screen without transition */
+/* Instant repositioning from below the screen without transition - RESET FIRST */
 .rocket-wrapper.instantly-below {
+  transition: none !important;
+  transform: translateY(150vh) rotate(-25deg) !important;
+  opacity: 0 !important;
+}
+
+/* Force reset class to ensure clean state before animation */
+.rocket-wrapper.reset-state {
   transition: none !important;
   transform: translateY(150vh) rotate(-25deg) !important;
   opacity: 0 !important;
