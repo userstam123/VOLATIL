@@ -13,49 +13,6 @@
     <div id="stars3"></div>
 
     <div class="app-container">
-        <!-- AI Sidebar -->
-        <div id="ai-sidebar" class="ai-sidebar">
-            <div class="ai-sidebar-header">
-                <h2>🤖 AI Assistant</h2>
-                <button id="ai-collapse-btn" class="ai-collapse-btn" title="Collapse Sidebar">◀</button>
-            </div>
-            <div class="ai-tabs">
-                <button class="ai-tab active" data-model="qwen">Qwen</button>
-                <button class="ai-tab" data-model="gemini">Gemini</button>
-                <button class="ai-tab" data-model="grok">Grok</button>
-            </div>
-            <div class="ai-api-keys-container">
-                <details class="ai-api-keys-details">
-                    <summary>🔑 API Keys (Optional)</summary>
-                    <div class="api-key-inputs">
-                        <div class="api-key-row">
-                            <label>Qwen API Key:</label>
-                            <input type="password" id="qwen-api-key" placeholder="Enter Qwen API key...">
-                        </div>
-                        <div class="api-key-row">
-                            <label>Gemini API Key:</label>
-                            <input type="password" id="gemini-api-key" placeholder="Enter Gemini API key...">
-                        </div>
-                        <div class="api-key-row">
-                            <label>Grok API Key:</label>
-                            <input type="password" id="grok-api-key" placeholder="Enter Grok API key...">
-                        </div>
-                    </div>
-                </details>
-            </div>
-            <div id="ai-chat-history" class="ai-chat-history">
-                <div class="ai-welcome-message">
-                    <p>Welcome to the AI Forensic Assistant!</p>
-                    <p>Drag and drop case files here for analysis, or ask questions about your investigation.</p>
-                </div>
-            </div>
-            <div id="ai-attachment-status" class="ai-attachment-status"></div>
-            <div class="ai-input-container">
-                <textarea id="ai-prompt-input" placeholder="Ask the AI to analyze files, write scripts, or explain findings..." rows="3"></textarea>
-                <button id="ai-send-btn" class="ai-send-btn">➤</button>
-            </div>
-        </div>
-
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="fire-logo">
