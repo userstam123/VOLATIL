@@ -7,6 +7,18 @@ body {
   transition: background 0.3s ease;
 }
 
+/* Daytime background container - stays at 100% regardless of body zoom */
+.bg-animation-container {
+  transform: scale(1.111) !important; /* Counteract the 0.9 zoom (1/0.9 = 1.111) */
+  transform-origin: center center !important;
+}
+
+/* Also ensure stars layers stay at proper scale */
+#stars, #stars2, #stars3 {
+  transform: scale(1.111);
+  transform-origin: center center;
+}
+
 body.light-mode {
   /* Sun and water background handled in style.css */
 }
