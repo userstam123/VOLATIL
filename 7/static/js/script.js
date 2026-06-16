@@ -603,12 +603,17 @@ function renderPlugins(plugins) {
             
             // Re-render immediately to move pinned items to top
             updateRunButton();
-            renderPlugins(allPlugins); // Use global allPlugins to ensure full list is sorted
             
-            // If we just selected it, we might want to keep the dropdown open or handle focus?
-            // For now, standard behavior: re-render resets DOM, so dropdown closes.
-            // If you want to keep dropdown open, you'd need to restore state, but usually 
-            // pinning to top is visual enough.
+            // If there's an active search, re-apply the search filter on the filtered results
+            // Otherwise use the full allPlugins list
+            if (currentPluginSearch && currentPluginSearch.trim() !== '') {
+                const filteredPlugins = allPlugins.filter(p => 
+                    p.toLowerCase().includes(currentPluginSearch)
+                );
+                renderPlugins(filteredPlugins);
+            } else {
+                renderPlugins(allPlugins);
+            }
         });
 
         itemRow.appendChild(helpBtn);
@@ -712,12 +717,27 @@ async function toggleParamsDropdown(plugin, dropdown) {
                         
                         inp.oninput = () => {
                             if (!pluginParams[plugin]) pluginParams[plugin] = {};
+                            // Always update the value, regardless of checkbox state
                             pluginParams[plugin][p.name] = { 
                                 active: cb.checked, 
                                 value: inp.value, 
                                 takes_value: p.takes_value 
                             };
                         };
+                        
+                        // Allow input to be edited even when checkbox is unchecked
+                        inp.addEventListener('click', () => {
+                            if (!cb.checked) {
+                                cb.checked = true;
+                                inp.disabled = false;
+                                if (!pluginParams[plugin]) pluginParams[plugin] = {};
+                                pluginParams[plugin][p.name] = { 
+                                    active: true, 
+                                    value: inp.value, 
+                                    takes_value: p.takes_value 
+                                };
+                            }
+                        });
                         
                         row.appendChild(cb);
                         row.appendChild(lbl);
