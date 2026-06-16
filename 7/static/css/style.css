@@ -59,8 +59,6 @@ html.light-mode {
     1000px,
     400px 260px;
   animation: 50s para infinite linear;
-  transform: scale(0.9);
-  transform-origin: center center;
 }
 
 html {
@@ -138,15 +136,11 @@ body {
   height: 100vh;
   overflow: hidden;
   transition: background 0.3s ease, color 0.3s ease;
-  transform: scale(0.9);
-  transform-origin: center center;
 }
 
 body.light-mode {
   /* Background is set by the flowing water animation above */
   background: hsla(200,40%,30%,.4) !important;
-  transform: scale(0.9);
-  transform-origin: center center;
 }
 
 .app-container { display: flex; height: 100vh; position: relative; z-index: 1; }

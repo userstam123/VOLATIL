@@ -416,7 +416,18 @@ def list_files(folder_name):
     folder_path = os.path.join(FINDINGS_DIR, folder_name)
     if not os.path.exists(folder_path): return jsonify({"error": "Folder not found"}), 404
     
-    files = [f for f in os.listdir(folder_path) if f.endswith(('.txt', '.json'))]
+    # Get all items (files and subfolders)
+    all_items = os.listdir(folder_path)
+    files = []
+    subfolders = []
+    
+    for item in all_items:
+        item_path = os.path.join(folder_path, item)
+        if os.path.isdir(item_path):
+            subfolders.append(item)
+        elif item.endswith(('.txt', '.json')):
+            files.append(item)
+    
     file_stats = {}
     
     for f in files:
@@ -430,7 +441,12 @@ def list_files(folder_name):
         except Exception:
             pass
     
-    return jsonify({"folder": folder_name, "files": sorted(files), "file_stats": file_stats})
+    return jsonify({
+        "folder": folder_name, 
+        "files": sorted(files), 
+        "subfolders": sorted(subfolders),
+        "file_stats": file_stats
+    })
 
 @app.route('/api/files/create', methods=['POST'])
 def create_file():
