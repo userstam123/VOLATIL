@@ -1032,6 +1032,7 @@ async function loadFileTree() {
         const res = await fetch(`/api/files/${currentFolder}`);
         const data = await res.json();
         let files = data.files || [];
+        let subfolders = data.subfolders || [];
         
         // Apply filter first
         if (currentFileFilter && currentFileFilter !== 'all') {
@@ -1070,8 +1071,29 @@ async function loadFileTree() {
                 default: return 0;
             }
         });
+        
         tree.innerHTML = '';
-        if (files.length === 0) { tree.innerHTML = '<div class="empty-state">No files found</div>'; return; }
+        
+        // Render subfolders first
+        if (subfolders.length > 0) {
+            subfolders.forEach(folder => {
+                const div = document.createElement('div');
+                div.className = 'file-item folder-item';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'file-item-name'; 
+                nameSpan.textContent = '📁 ' + folder; 
+                nameSpan.title = folder;
+                div.appendChild(nameSpan);
+                div.onclick = () => openSubfolderInBrowser(folder);
+                tree.appendChild(div);
+            });
+        }
+        
+        if (files.length === 0 && subfolders.length === 0) { 
+            tree.innerHTML = '<div class="empty-state">No files found</div>'; 
+            return; 
+        }
+        
         files.forEach(file => {
             const div = document.createElement('div');
             div.className = 'file-item';
@@ -1095,6 +1117,12 @@ async function loadFileTree() {
         });
         applyFileSearchFilter();
     } catch (err) { tree.innerHTML = '<div style="color:var(--danger);text-align:center;">Error</div>'; }
+}
+
+function openSubfolderInBrowser(folderName) {
+    if (!currentFolder) return;
+    const subfolderPath = `${currentFolder}/${folderName}`;
+    openFileBrowser(subfolderPath);
 }
 
 async function promptCreateFile() {

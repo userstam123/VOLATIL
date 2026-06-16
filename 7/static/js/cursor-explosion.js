@@ -73,7 +73,7 @@
             hasExplodedForRun = true;
             explode(e.clientX, e.clientY);
             // Reset after a short delay to allow next run click
-            setTimeout(() => { hasExplodedForRun = false; }, 500);
+            setTimeout(() => { hasExplodedForRun = false; }, 200);
         }
     });
 
