@@ -13,7 +13,7 @@
 
     const canvas = document.createElement('canvas');
     canvas.id = 'cursor-canvas';
-    canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:99998;';
+    canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;pointer-events:none;';
     container.appendChild(canvas);
     const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -64,10 +64,18 @@
         }
     }
 
-    const runBtn = document.getElementById('btn-run-selected');
-    if (runBtn) {
-        runBtn.addEventListener('mousedown', (e) => { explode(e.clientX, e.clientY); });
-    }
+    // Track if explosion already happened for this run click
+    let hasExplodedForRun = false;
+    
+    document.addEventListener('click', (e) => {
+        // Only explode for run button, and only once per click cycle
+        if (e.target.id === 'btn-run-selected' && !hasExplodedForRun) {
+            hasExplodedForRun = true;
+            explode(e.clientX, e.clientY);
+            // Reset after a short delay to allow next run click
+            setTimeout(() => { hasExplodedForRun = false; }, 500);
+        }
+    });
 
     function animate() {
         ctx.clearRect(0, 0, width, height);
