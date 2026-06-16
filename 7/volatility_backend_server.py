@@ -415,7 +415,22 @@ def log_error():
 def list_files(folder_name):
     folder_path = os.path.join(FINDINGS_DIR, folder_name)
     if not os.path.exists(folder_path): return jsonify({"error": "Folder not found"}), 404
-    return jsonify({"folder": folder_name, "files": sorted([f for f in os.listdir(folder_path) if f.endswith(('.txt', '.json'))])})
+    
+    files = [f for f in os.listdir(folder_path) if f.endswith(('.txt', '.json'))]
+    file_stats = {}
+    
+    for f in files:
+        fpath = os.path.join(folder_path, f)
+        try:
+            stat_info = os.stat(fpath)
+            file_stats[f] = {
+                "created": datetime.fromtimestamp(stat_info.st_ctime).isoformat(),
+                "modified": datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+            }
+        except Exception:
+            pass
+    
+    return jsonify({"folder": folder_name, "files": sorted(files), "file_stats": file_stats})
 
 @app.route('/api/files/create', methods=['POST'])
 def create_file():
@@ -516,15 +531,21 @@ def start_scan():
     dump_plugins = ['dumpfiles', 'memmap', 'vadinfo', 'dlldump', 'moddump', 'filescan', 'dumpregistry']
     is_dump_plugin = any(dp in plugin.lower() for dp in [d.lower() for d in dump_plugins])
     
-    cmd = [sys.executable, VOL_PATH, "-f", mem_file, plugin]
-    if params: cmd.extend(params)
+    # Build command: for dump plugins, --output-dir must come BEFORE the plugin name
+    cmd = [sys.executable, VOL_PATH, "-f", mem_file]
     
-    # If it's a dump plugin, add output directory parameter pointing to dump subfolder
+    # If it's a dump plugin, add output directory parameter BEFORE the plugin name
     if is_dump_plugin:
         dump_folder_path = os.path.join(FINDINGS_DIR, inv_name, "dump")
         os.makedirs(dump_folder_path, exist_ok=True)
-        # Add --output-dir parameter for dump plugins
+        # Add --output-dir parameter BEFORE the plugin name
         cmd.extend(['--output-dir', dump_folder_path])
+    
+    # Add plugin name after any pre-plugin options
+    cmd.append(plugin)
+    
+    # Add any additional params after the plugin name
+    if params: cmd.extend(params)
     
     cmd_line_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
     folder_path = os.path.join(FINDINGS_DIR, inv_name); os.makedirs(folder_path, exist_ok=True)
