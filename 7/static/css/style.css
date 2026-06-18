@@ -136,29 +136,14 @@ body {
   height: 100vh;
   overflow: hidden;
   transition: background 0.3s ease, color 0.3s ease;
-  transform: scale(0.9);
-  transform-origin: top left;
-  width: 111.11%;
-  height: 111.11%;
 }
 
 body.light-mode {
   /* Background is set by the flowing water animation above */
   background: hsla(200,40%,30%,.4) !important;
-  transform: scale(0.9);
-  transform-origin: top left;
-  width: 111.11%;
-  height: 111.11%;
 }
 
-.app-container { 
-  display: flex; 
-  height: 100vh; 
-  position: relative; 
-  z-index: 1; 
-  transform: scale(0.9);
-  transform-origin: top left;
-}
+.app-container { display: flex; height: 100vh; position: relative; z-index: 1; }
 
 /* DYNAMIC SIDEBAR */
 .sidebar {
@@ -263,12 +248,8 @@ body.light-mode .fire-logo .workstation-text { color: #64748b; }
 
 .btn {
   width: 100%; padding: 8px 12px; border: none; border-radius: 4px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s ease; font-size: 12px; margin-bottom: 6px;
+  cursor: pointer; transition: all 0.2s; font-size: 12px; margin-bottom: 6px;
   background: var(--ui-bg-card); color: var(--ui-text); border: 1px solid var(--ui-border);
-}
-.btn:active:not(:disabled) {
-  transform: scale(0.95);
-  opacity: 0.9;
 }
 .btn-primary { background: var(--primary); color: #fff; border: none; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
