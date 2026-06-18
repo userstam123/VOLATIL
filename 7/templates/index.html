@@ -93,6 +93,15 @@
                         <option value="json">JSON (.json)</option>
                     </select>
                 </div>
+                <!-- Tree navigation controls -->
+                <div id="tree-nav-container" class="tree-nav-container" style="display:none;">
+                    <div class="tree-nav-controls">
+                        <button id="tree-back-btn" class="tree-nav-btn" title="Back" disabled>◀</button>
+                        <button id="tree-forward-btn" class="tree-nav-btn" title="Forward" disabled>▶</button>
+                        <button id="tree-up-btn" class="tree-nav-btn" title="Up" disabled>⬆</button>
+                    </div>
+                    <div id="tree-breadcrumbs" class="tree-breadcrumbs"></div>
+                </div>
                 <div id="file-tree" class="file-tree"><div class="empty-state">No active case</div></div>
                 <div class="action-buttons">
                     <button id="btn-aggregate" class="btn btn-small btn-secondary">Aggregate JSONs</button>

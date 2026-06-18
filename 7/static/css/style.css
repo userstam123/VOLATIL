@@ -339,6 +339,70 @@ body.light-mode .plugin-item.selected { background: #dbeafe; color: #1e40af; }
 .file-item:hover { background: var(--ui-bg-card); }
 .file-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 
+/* Folder items in tree view */
+.folder-item {
+  font-weight: 600;
+  color: var(--primary);
+}
+.folder-item:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+body.light-mode .folder-item:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+/* Tree navigation controls */
+.tree-nav-controls {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.tree-nav-btn {
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+.tree-nav-btn:hover:not(:disabled) {
+  background: var(--ui-bg-card);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.tree-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tree-breadcrumbs {
+  font-size: 10px;
+  color: var(--ui-text-muted);
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  background: var(--ui-bg-card);
+  border-radius: 3px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.tree-breadcrumb-sep {
+  color: var(--ui-text-muted);
+  margin: 0 4px;
+}
+.tree-breadcrumb-item {
+  cursor: pointer;
+  color: var(--primary);
+}
+.tree-breadcrumb-item:hover {
+  text-decoration: underline;
+}
+.tree-breadcrumb-current {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+
 .file-actions { display: flex; gap: 4px; opacity: 0.4; transition: opacity 0.2s ease; flex-shrink: 0; }
 .file-item:hover .file-actions { opacity: 1; }
 .file-action-btn {
