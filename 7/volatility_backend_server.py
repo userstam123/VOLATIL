@@ -298,8 +298,12 @@ def peek_file(folder_name, file_name):
     size = os.path.getsize(path)
     head = ""
     try:
-        with open(path, 'r', encoding='utf-8', errors='ignore') as f: head = f.read(4000)
-    except Exception: pass
+        # Read only first 4KB to avoid blocking on large files
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            head = f.read(4000)
+    except Exception as e:
+        print(f"Error peeking file {path}: {e}")
+        pass
     return jsonify({"size": size, "head": head})
 
 @app.route('/api/files/html/<folder_name>/<path:file_name>')
@@ -579,9 +583,21 @@ def start_scan():
 def stream_scan(task_id):
     manager = active_tasks.get(task_id)
     if not manager: return jsonify({"error": "Task not found"}), 404
+    
+    # Track start time for timeout detection
+    import time
+    start_time = time.time()
+    MAX_PLUGIN_RUNTIME = 300  # 5 minutes timeout warning
+    
     def generate():
+        nonlocal start_time
         while True:
             try:
+                # Check if running too long
+                elapsed = time.time() - start_time
+                if elapsed > MAX_PLUGIN_RUNTIME and manager.is_running:
+                    yield f"data: [TIMEOUT_WARNING]Plugin {manager.plugin} is taking too long ({elapsed:.0f}s). Consider terminating.\n\n"
+                
                 line = manager.queue.get(timeout=1.0)
                 yield f"data: {line}\n\n"
                 if line == "[PROCESS_TERMINATED]" or line.startswith("[ERROR]"): break
