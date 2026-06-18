@@ -20,7 +20,6 @@ let currentFileFilter = "all";
 let currentFileSearch = "";
 let renameTargetFile = null;
 let allPlugins = [];
-let lastOpenedInv = null;
 
 const btnChooseDump = document.getElementById('btn-choose-dump');
 const btnRunSelected = document.getElementById('btn-run-selected');
@@ -129,8 +128,8 @@ function openPidModal() {
             availablePidFiles = data.files.filter(f => 
                 f.endsWith('.json') && !f.endsWith('_aggregated_by_plugin.json') && 
                 !f.endsWith('_grouped_by_pid.json') && f !== 'error_log.json' && f !== 'metadata.json'
-            ).map(f => ({ name: f, selected: true }));
-            renderPidFileList(availablePidFiles);
+            );
+            renderPidFileList(availablePidFiles.map(f => ({ name: f, selected: true })));
         })
         .catch(err => { pidFileList.innerHTML = '<div style="color:var(--danger);">Error loading files</div>'; });
 }
@@ -144,28 +143,24 @@ function renderPidFileList(files) {
         div.className = 'pid-file-item';
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.checked = f.selected; cb.dataset.index = i;
-        cb.onchange = () => { 
-            files[i].selected = cb.checked;
-            console.log(`File ${f.name} selected: ${cb.checked}`);
-        };
+        cb.onchange = () => { files[i].selected = cb.checked; };
         const lbl = document.createElement('span'); lbl.textContent = f.name;
-        lbl.onclick = () => {
-            cb.checked = !cb.checked;
-            files[i].selected = cb.checked;
-            console.log(`File ${f.name} selected: ${cb.checked} (via label click)`);
-        };
         div.appendChild(cb); div.appendChild(lbl);
         pidFileList.appendChild(div);
     });
 }
 
 document.getElementById('btn-pid-select-all').addEventListener('click', () => {
-    availablePidFiles.forEach(f => f.selected = true);
-    renderPidFileList(availablePidFiles);
+    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = true; const idx = parseInt(cb.dataset.index);
+        if (availablePidFiles[idx]) availablePidFiles[idx].selected = true;
+    });
 });
 document.getElementById('btn-pid-deselect-all').addEventListener('click', () => {
-    availablePidFiles.forEach(f => f.selected = false);
-    renderPidFileList(availablePidFiles);
+    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = false; const idx = parseInt(cb.dataset.index);
+        if (availablePidFiles[idx]) availablePidFiles[idx].selected = false;
+    });
 });
 
 btnConfirmPid.addEventListener('click', async () => {
@@ -510,8 +505,6 @@ function closeModal() {
 async function setupCaseUI(folderName) {
     currentFolder = folderName;
     currentInvName = folderName;
-    lastOpenedInv = folderName;
-    localStorage.setItem('last_opened_inv', folderName);
     document.getElementById('badge-case').textContent = `📋 Case: ${currentInvName}`;
     document.getElementById('badge-os').textContent = `💻 OS: ${currentOS ? currentOS.toUpperCase() : 'UNKNOWN'}`;
     document.getElementById('badges').style.display = 'block';
@@ -1377,27 +1370,3 @@ function closeTab(id, wasRunning) {
     if (remainingTabs.length > 0) switchTab(remainingTabs[0].id.replace('tab-btn-', ''));
     setStatus('Ready', 'idle');
 }
-
-// Restore last opened investigation on page load
-window.addEventListener('DOMContentLoaded', () => {
-    const savedInv = localStorage.getItem('last_opened_inv');
-    if (savedInv) {
-        // Check if the investigation folder exists
-        fetch(`/api/files/${savedInv}`)
-            .then(r => {
-                if (r.ok) {
-                    // Folder exists, restore state
-                    currentFolder = savedInv;
-                    currentInvName = savedInv;
-                    document.getElementById('badge-case').textContent = `📋 Case: ${savedInv}`;
-                    document.getElementById('badges').style.display = 'block';
-                    loadFileTree();
-                    setStatus('Restored previous case', 'success');
-                }
-            })
-            .catch(() => {
-                // Folder doesn't exist, clear saved state
-                localStorage.removeItem('last_opened_inv');
-            });
-    }
-});
