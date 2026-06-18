@@ -21,6 +21,11 @@ let currentFileSearch = "";
 let renameTargetFile = null;
 let allPlugins = [];
 
+// Tree navigation state for case files
+let treeNavigationHistory = [];
+let treeNavigationIndex = -1;
+let currentTreePath = null;
+
 const btnChooseDump = document.getElementById('btn-choose-dump');
 const btnRunSelected = document.getElementById('btn-run-selected');
 const btnAggregate = document.getElementById('btn-aggregate');
@@ -49,6 +54,13 @@ const pidFileList = document.getElementById('pid-file-list');
 const btnConfirmPid = document.getElementById('btn-confirm-pid');
 const fileSortSelect = document.getElementById('file-sort-select');
 const fileFilterSelect = document.getElementById('file-filter-select');
+
+// Tree navigation elements
+const treeNavContainer = document.getElementById('tree-nav-container');
+const treeBackBtn = document.getElementById('tree-back-btn');
+const treeForwardBtn = document.getElementById('tree-forward-btn');
+const treeUpBtn = document.getElementById('tree-up-btn');
+const treeBreadcrumbs = document.getElementById('tree-breadcrumbs');
 
 btnChooseDump.addEventListener('click', () => openFileBrowser());
 btnRunSelected.addEventListener('click', runAllSelectedPlugins);
@@ -125,11 +137,12 @@ function openPidModal() {
     fetch(`/api/files/${currentFolder}`)
         .then(r => r.json())
         .then(data => {
-            availablePidFiles = data.files.filter(f => 
+            const jsonFiles = data.files.filter(f => 
                 f.endsWith('.json') && !f.endsWith('_aggregated_by_plugin.json') && 
                 !f.endsWith('_grouped_by_pid.json') && f !== 'error_log.json' && f !== 'metadata.json'
             );
-            renderPidFileList(availablePidFiles.map(f => ({ name: f, selected: true })));
+            availablePidFiles = jsonFiles.map(f => ({ name: f, selected: true }));
+            renderPidFileList(availablePidFiles);
         })
         .catch(err => { pidFileList.innerHTML = '<div style="color:var(--danger);">Error loading files</div>'; });
 }
@@ -151,16 +164,12 @@ function renderPidFileList(files) {
 }
 
 document.getElementById('btn-pid-select-all').addEventListener('click', () => {
-    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = true; const idx = parseInt(cb.dataset.index);
-        if (availablePidFiles[idx]) availablePidFiles[idx].selected = true;
-    });
+    availablePidFiles.forEach(f => f.selected = true);
+    renderPidFileList(availablePidFiles);
 });
 document.getElementById('btn-pid-deselect-all').addEventListener('click', () => {
-    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = false; const idx = parseInt(cb.dataset.index);
-        if (availablePidFiles[idx]) availablePidFiles[idx].selected = false;
-    });
+    availablePidFiles.forEach(f => f.selected = false);
+    renderPidFileList(availablePidFiles);
 });
 
 btnConfirmPid.addEventListener('click', async () => {
@@ -887,22 +896,17 @@ async function runPlugin(plugin) {
     let lineCount = 0; let hasProgressError = false;
     const triggerStallCheck = () => {
         if (lineCount <= 3 && activeTasks[tabId]?.isRunning && !hasError) {
-            const keepRunning = confirm(`The plugin "${plugin}" has produced 3 or fewer lines in 5 minutes. Terminate?`);
-            if (keepRunning) {
-                hasError = true;
-                streamBuffer.push('❌ STALLED: Terminated by user.');
-                if (tabEl) {
-                    tabEl.classList.remove('running', 'queued'); tabEl.classList.add('error');
-                    tabEl.dataset.issue = "Plugin stalled (User terminated).";
-                    tabEl.dataset.filename = plugin.replace(/[^a-zA-Z0-9_\-]/g, '_') + '.txt';
-                }
-                if (!isFlushing) requestAnimationFrame(flushBuffer);
-                logErrorToBackend(plugin, "Plugin stalled (User terminated).");
-                if (activeTasks[tabId]?.taskId) fetch(`/api/scan/terminate/${activeTasks[tabId].taskId}`, { method: 'POST' });
-            } else {
-                lineCount = 0;
-                activeTasks[tabId].stallTimer = setTimeout(triggerStallCheck, 300000);
+            showToast(`⚠️ ${plugin} takes too long to produce output. Consider terminating.`, 'warning');
+            hasError = true;
+            streamBuffer.push('❌ STALLED: Plugin taking too long.');
+            if (tabEl) {
+                tabEl.classList.remove('running', 'queued'); tabEl.classList.add('error');
+                tabEl.dataset.issue = "Plugin stalled (taking too long).";
+                tabEl.dataset.filename = plugin.replace(/[^a-zA-Z0-9_\-]/g, '_') + '.txt';
             }
+            if (!isFlushing) requestAnimationFrame(flushBuffer);
+            logErrorToBackend(plugin, "Plugin stalled (taking too long).");
+            if (activeTasks[tabId]?.taskId) fetch(`/api/scan/terminate/${activeTasks[tabId].taskId}`, { method: 'POST' });
         } else if (activeTasks[tabId]?.isRunning && !hasError) {
             activeTasks[tabId].stallTimer = setTimeout(triggerStallCheck, 300000);
         }
