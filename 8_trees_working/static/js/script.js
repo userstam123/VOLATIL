@@ -125,11 +125,12 @@ function openPidModal() {
     fetch(`/api/files/${currentFolder}`)
         .then(r => r.json())
         .then(data => {
-            availablePidFiles = data.files.filter(f => 
+            const filteredFiles = data.files.filter(f => 
                 f.endsWith('.json') && !f.endsWith('_aggregated_by_plugin.json') && 
                 !f.endsWith('_grouped_by_pid.json') && f !== 'error_log.json' && f !== 'metadata.json'
             );
-            renderPidFileList(availablePidFiles.map(f => ({ name: f, selected: true })));
+            availablePidFiles = filteredFiles.map(f => ({ name: f, selected: true }));
+            renderPidFileList(availablePidFiles);
         })
         .catch(err => { pidFileList.innerHTML = '<div style="color:var(--danger);">Error loading files</div>'; });
 }
@@ -143,7 +144,7 @@ function renderPidFileList(files) {
         div.className = 'pid-file-item';
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.checked = f.selected; cb.dataset.index = i;
-        cb.onchange = () => { files[i].selected = cb.checked; };
+        cb.onchange = () => { availablePidFiles[i].selected = cb.checked; };
         const lbl = document.createElement('span'); lbl.textContent = f.name;
         div.appendChild(cb); div.appendChild(lbl);
         pidFileList.appendChild(div);
@@ -151,15 +152,17 @@ function renderPidFileList(files) {
 }
 
 document.getElementById('btn-pid-select-all').addEventListener('click', () => {
-    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = true; const idx = parseInt(cb.dataset.index);
-        if (availablePidFiles[idx]) availablePidFiles[idx].selected = true;
+    availablePidFiles.forEach((f, i) => {
+        f.selected = true;
+        const cb = pidFileList.querySelector(`input[type="checkbox"][data-index="${i}"]`);
+        if (cb) cb.checked = true;
     });
 });
 document.getElementById('btn-pid-deselect-all').addEventListener('click', () => {
-    pidFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = false; const idx = parseInt(cb.dataset.index);
-        if (availablePidFiles[idx]) availablePidFiles[idx].selected = false;
+    availablePidFiles.forEach((f, i) => {
+        f.selected = false;
+        const cb = pidFileList.querySelector(`input[type="checkbox"][data-index="${i}"]`);
+        if (cb) cb.checked = false;
     });
 });
 
@@ -867,22 +870,17 @@ async function runPlugin(plugin) {
     let lineCount = 0; let hasProgressError = false;
     const triggerStallCheck = () => {
         if (lineCount <= 3 && activeTasks[tabId]?.isRunning && !hasError) {
-            const keepRunning = confirm(`The plugin "${plugin}" has produced 3 or fewer lines in 5 minutes. Terminate?`);
-            if (keepRunning) {
-                hasError = true;
-                streamBuffer.push('❌ STALLED: Terminated by user.');
-                if (tabEl) {
-                    tabEl.classList.remove('running', 'queued'); tabEl.classList.add('error');
-                    tabEl.dataset.issue = "Plugin stalled (User terminated).";
-                    tabEl.dataset.filename = plugin.replace(/[^a-zA-Z0-9_\-]/g, '_') + '.txt';
-                }
-                if (!isFlushing) requestAnimationFrame(flushBuffer);
-                logErrorToBackend(plugin, "Plugin stalled (User terminated).");
-                if (activeTasks[tabId]?.taskId) fetch(`/api/scan/terminate/${activeTasks[tabId].taskId}`, { method: 'POST' });
-            } else {
-                lineCount = 0;
-                activeTasks[tabId].stallTimer = setTimeout(triggerStallCheck, 300000);
+            showToast(`⚠️ ${plugin} takes too long to produce output. Consider terminating the plugin from the running tasks tab.`, 'warning');
+            hasError = true;
+            streamBuffer.push('⚠️ Plugin takes too long - user notified.');
+            if (tabEl) {
+                tabEl.classList.remove('running', 'queued'); tabEl.classList.add('error');
+                tabEl.dataset.issue = "Plugin stalled (timeout notification shown).";
+                tabEl.dataset.filename = plugin.replace(/[^a-zA-Z0-9_\-]/g, '_') + '.txt';
             }
+            if (!isFlushing) requestAnimationFrame(flushBuffer);
+            logErrorToBackend(plugin, "Plugin stalled (timeout notification shown).");
+            if (activeTasks[tabId]?.taskId) fetch(`/api/scan/terminate/${activeTasks[tabId].taskId}`, { method: 'POST' });
         } else if (activeTasks[tabId]?.isRunning && !hasError) {
             activeTasks[tabId].stallTimer = setTimeout(triggerStallCheck, 300000);
         }
@@ -1011,68 +1009,143 @@ async function loadFileTree() {
     try {
         const res = await fetch(`/api/files/${currentFolder}`);
         const data = await res.json();
+        
+        // Use items array for tree structure, fallback to files for backwards compatibility
+        let items = data.items || [];
         let files = data.files || [];
         
-        // Apply filter first
+        // Apply filter
         if (currentFileFilter && currentFileFilter !== 'all') {
-            files = files.filter(f => f.toLowerCase().endsWith('.' + currentFileFilter.toLowerCase()));
+            items = items.filter(item => {
+                if (item.is_dir) return true; // Always show directories
+                return item.name.toLowerCase().endsWith('.' + currentFileFilter.toLowerCase());
+            });
         }
         
-        // Then apply sort
-        files.sort((a, b) => {
+        // Apply search
+        if (currentFileSearch) {
+            items = items.filter(item => item.name.toLowerCase().includes(currentFileSearch));
+        }
+        
+        // Sort items
+        items.sort((a, b) => {
+            // Directories first, then files
+            if (a.is_dir && !b.is_dir) return -1;
+            if (!a.is_dir && b.is_dir) return 1;
+            
+            const nameA = a.name.split('/').pop();
+            const nameB = b.name.split('/').pop();
+            
             switch (currentFileSort) {
-                case 'name-asc': return a.localeCompare(b);
-                case 'name-desc': return b.localeCompare(a);
+                case 'name-asc': return nameA.localeCompare(nameB);
+                case 'name-desc': return nameB.localeCompare(nameA);
                 case 'type-asc': {
-                    const extA = a.split('.').pop() || '';
-                    const extB = b.split('.').pop() || '';
-                    return extA.localeCompare(extB) || a.localeCompare(b);
+                    const extA = nameA.split('.').pop() || '';
+                    const extB = nameB.split('.').pop() || '';
+                    return extA.localeCompare(extB) || nameA.localeCompare(nameB);
                 }
                 case 'type-desc': {
-                    const extA = a.split('.').pop() || '';
-                    const extB = b.split('.').pop() || '';
-                    return extB.localeCompare(extA) || b.localeCompare(a);
+                    const extA = nameA.split('.').pop() || '';
+                    const extB = nameB.split('.').pop() || '';
+                    return extB.localeCompare(extA) || nameB.localeCompare(nameA);
                 }
-                case 'created-asc': 
-                case 'created-desc': {
-                    // Use file stats from backend if available, otherwise fallback to name
-                    const dateA = data.file_stats && data.file_stats[a] ? new Date(data.file_stats[a].created) : new Date(0);
-                    const dateB = data.file_stats && data.file_stats[b] ? new Date(data.file_stats[b].created) : new Date(0);
-                    return currentFileSort === 'created-asc' ? dateA - dateB : dateB - dateA;
-                }
-                case 'modified-asc':
-                case 'modified-desc': {
-                    // Use file stats from backend if available, otherwise fallback to name
-                    const dateA = data.file_stats && data.file_stats[a] ? new Date(data.file_stats[a].modified) : new Date(0);
-                    const dateB = data.file_stats && data.file_stats[b] ? new Date(data.file_stats[b].modified) : new Date(0);
-                    return currentFileSort === 'modified-asc' ? dateA - dateB : dateB - dateA;
-                }
-                default: return 0;
+                default: return nameA.localeCompare(nameB);
             }
         });
+        
         tree.innerHTML = '';
-        if (files.length === 0) { tree.innerHTML = '<div class="empty-state">No files found</div>'; return; }
-        files.forEach(file => {
-            const div = document.createElement('div');
-            div.className = 'file-item';
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'file-item-name'; nameSpan.textContent = file; nameSpan.title = file;
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'file-actions';
-            const editBtn = document.createElement('button');
-            editBtn.className = 'file-action-btn'; editBtn.innerHTML = '✎'; editBtn.title = 'Edit';
-            editBtn.onclick = (e) => { e.stopPropagation(); openFileTab(file, false, false, true); };
-            const renameBtn = document.createElement('button');
-            renameBtn.className = 'file-action-btn'; renameBtn.innerHTML = 'R'; renameBtn.title = 'Rename';
-            renameBtn.onclick = (e) => { e.stopPropagation(); openRenameModal(file); };
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'file-action-btn delete'; deleteBtn.innerHTML = '✕'; deleteBtn.title = 'Delete';
-            deleteBtn.onclick = (e) => { e.stopPropagation(); promptDeleteFile(file); };
-            actionsDiv.appendChild(editBtn); actionsDiv.appendChild(renameBtn); actionsDiv.appendChild(deleteBtn);
-            div.appendChild(nameSpan); div.appendChild(actionsDiv);
-            div.onclick = () => handleSidebarFileClick(file);
-            tree.appendChild(div);
+        if (items.length === 0) { tree.innerHTML = '<div class="empty-state">No files found</div>'; return; }
+        
+        // Build tree structure
+        const folderMap = new Map();
+        folderMap.set('', { children: [], element: null });
+        
+        items.forEach(item => {
+            const parts = item.name.split('/');
+            const itemName = parts.pop();
+            const parentPath = parts.join('/');
+            
+            if (!folderMap.has(parentPath)) {
+                folderMap.set(parentPath, { children: [], element: null });
+            }
+            folderMap.get(parentPath).children.push(item);
+            
+            if (item.is_dir && !folderMap.has(item.name)) {
+                folderMap.set(item.name, { children: [], element: null });
+            }
         });
+        
+        // Render tree recursively
+        function renderTree(path, container, depth = 0) {
+            const folder = folderMap.get(path);
+            if (!folder) return;
+            
+            folder.children.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.style.paddingLeft = (depth * 16 + 8) + 'px';
+                
+                const icon = item.is_dir ? '📁' : '📄';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'file-item-name';
+                nameSpan.textContent = icon + ' ' + item.name.split('/').pop();
+                nameSpan.title = item.name;
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'file-actions';
+                
+                if (!item.is_dir) {
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'file-action-btn'; editBtn.innerHTML = '✎'; editBtn.title = 'Edit';
+                    editBtn.onclick = (e) => { e.stopPropagation(); openFileTab(item.name, false, false, true); };
+                    
+                    const renameBtn = document.createElement('button');
+                    renameBtn.className = 'file-action-btn'; renameBtn.innerHTML = 'R'; renameBtn.title = 'Rename';
+                    renameBtn.onclick = (e) => { e.stopPropagation(); openRenameModal(item.name); };
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'file-action-btn delete'; deleteBtn.innerHTML = '✕'; deleteBtn.title = 'Delete';
+                    deleteBtn.onclick = (e) => { e.stopPropagation(); promptDeleteFile(item.name); };
+                    
+                    actionsDiv.appendChild(editBtn);
+                    actionsDiv.appendChild(renameBtn);
+                    actionsDiv.appendChild(deleteBtn);
+                } else {
+                    // Folder expand/collapse
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'file-action-btn'; toggleBtn.innerHTML = '▼'; toggleBtn.title = 'Toggle';
+                    toggleBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        const subContainer = div.querySelector('.file-tree-sub');
+                        if (subContainer) {
+                            subContainer.style.display = subContainer.style.display === 'none' ? 'block' : 'none';
+                            toggleBtn.innerHTML = subContainer.style.display === 'none' ? '▶' : '▼';
+                        }
+                    };
+                    actionsDiv.appendChild(toggleBtn);
+                }
+                
+                div.appendChild(nameSpan);
+                div.appendChild(actionsDiv);
+                
+                if (!item.is_dir) {
+                    div.onclick = () => handleSidebarFileClick(item.name);
+                }
+                
+                container.appendChild(div);
+                
+                // Render subfolder contents
+                if (item.is_dir) {
+                    const subContainer = document.createElement('div');
+                    subContainer.className = 'file-tree-sub';
+                    subContainer.style.display = 'block'; // Expanded by default
+                    div.appendChild(subContainer);
+                    renderTree(item.name, subContainer, depth + 1);
+                }
+            });
+        }
+        
+        renderTree('', tree, 0);
         applyFileSearchFilter();
     } catch (err) { tree.innerHTML = '<div style="color:var(--danger);text-align:center;">Error</div>'; }
 }
