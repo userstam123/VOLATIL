@@ -415,14 +415,44 @@ def log_error():
 def list_files(folder_name):
     folder_path = os.path.join(FINDINGS_DIR, folder_name)
     if not os.path.exists(folder_path): return jsonify({"error": "Folder not found"}), 404
-    return jsonify({"folder": folder_name, "files": sorted([f for f in os.listdir(folder_path) if f.endswith(('.txt', '.json'))])})
+    
+    # Walk through all subdirectories and collect files with their relative paths
+    all_items = []
+    for root, dirs, files in os.walk(folder_path):
+        rel_root = os.path.relpath(root, folder_path)
+        if rel_root == '.':
+            rel_root = ''
+        else:
+            rel_root = rel_root.replace(os.sep, '/') + '/'
+        
+        # Add directories (for tree structure)
+        for d in sorted(dirs):
+            all_items.append({'name': rel_root + d, 'type': 'directory', 'is_dir': True})
+        
+        # Add files
+        for f in sorted(files):
+            if f.endswith(('.txt', '.json')):
+                all_items.append({'name': rel_root + f, 'type': 'file', 'is_dir': False})
+    
+    return jsonify({
+        "folder": folder_name, 
+        "items": all_items,
+        "files": sorted([f for f in os.listdir(folder_path) if f.endswith(('.txt', '.json'))])
+    })
 
 @app.route('/api/files/create', methods=['POST'])
 def create_file():
     data = request.get_json(silent=True) or {}
     folder = data.get('folder'); filename = data.get('filename'); content = data.get('content', '')
     if not folder or not filename: return jsonify({"error": "Missing folder or filename"}), 400
-    folder_path = os.path.join(FINDINGS_DIR, folder); path = os.path.join(folder_path, filename)
+    # Handle subfolder paths
+    file_path_parts = filename.split('/')
+    folder_path = os.path.join(FINDINGS_DIR, folder)
+    if len(file_path_parts) > 1:
+        # Create subdirectories if needed
+        sub_dir = os.path.join(folder_path, *file_path_parts[:-1])
+        os.makedirs(sub_dir, exist_ok=True)
+    path = os.path.join(folder_path, filename.replace('/', os.sep))
     if os.path.exists(path): return jsonify({"error": "File already exists"}), 400
     try:
         with open(path, 'w', encoding='utf-8') as f: f.write(content)
@@ -435,9 +465,14 @@ def rename_file():
     folder = data.get('folder'); old_name = data.get('old_name'); new_name = data.get('new_name')
     if not folder or not old_name or not new_name: return jsonify({"error": "Missing parameters"}), 400
     folder_path = os.path.join(FINDINGS_DIR, folder)
-    old_path = os.path.join(folder_path, old_name); new_path = os.path.join(folder_path, new_name)
+    old_path = os.path.join(folder_path, old_name.replace('/', os.sep))
+    new_path = os.path.join(folder_path, new_name.replace('/', os.sep))
     if not os.path.exists(old_path): return jsonify({"error": "File not found"}), 404
     if os.path.exists(new_path): return jsonify({"error": "Target name already exists"}), 400
+    # Create parent directory for new path if needed
+    new_parent = os.path.dirname(new_path)
+    if new_parent and not os.path.exists(new_parent):
+        os.makedirs(new_parent, exist_ok=True)
     try: os.rename(old_path, new_path); return jsonify({"success": True})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -446,7 +481,7 @@ def save_file():
     data = request.get_json(silent=True) or {}
     folder = data.get('folder'); filename = data.get('filename'); content = data.get('content')
     if not folder or not filename or content is None: return jsonify({"error": "Missing parameters"}), 400
-    folder_path = os.path.join(FINDINGS_DIR, folder); path = os.path.join(folder_path, filename)
+    folder_path = os.path.join(FINDINGS_DIR, folder); path = os.path.join(folder_path, filename.replace('/', os.sep))
     if not os.path.exists(path): return jsonify({"error": "File not found"}), 404
     try:
         with open(path, 'w', encoding='utf-8') as f: f.write(content)
@@ -459,8 +494,9 @@ def delete_file():
     folder = request.args.get('folder') or data.get('folder'); file = request.args.get('file') or data.get('file')
     if not folder or not file: return jsonify({"error": "Invalid request"}), 400
     folder_path = os.path.join(FINDINGS_DIR, folder); base_name = os.path.splitext(file)[0]
+    file_path_base = base_name.replace('/', os.sep)
     for ext in ['.txt', '.json']:
-        path = os.path.join(folder_path, base_name + ext)
+        path = os.path.join(folder_path, file_path_base + ext)
         if os.path.exists(path):
             try: os.remove(path)
             except Exception: pass

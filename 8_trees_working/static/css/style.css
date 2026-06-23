@@ -327,7 +327,7 @@ body.light-mode .plugin-item.selected { background: #dbeafe; color: #1e40af; }
 }
 
 .file-tree {
-  border: 1px solid var(--ui-border); border-radius: 4px; padding: 8px; max-height: 180px;
+  border: 1px solid var(--ui-border); border-radius: 4px; padding: 8px; max-height: 250px;
   overflow-y: auto; background: var(--space-bg); font-family: 'Consolas', monospace; font-size: 11px;
 }
 .file-item {
@@ -346,6 +346,10 @@ body.light-mode .plugin-item.selected { background: #dbeafe; color: #1e40af; }
   display: flex; align-items: center; justify-content: center; transition: all 0.2s; line-height: 1;
 }
 .file-action-btn:hover { background: var(--space-bg); border-color: var(--ui-border); color: var(--primary); }
+
+.file-tree-sub {
+  margin-left: 8px;
+}
 
 /* RED X DELETE BUTTON */
 .file-action-btn.delete {
